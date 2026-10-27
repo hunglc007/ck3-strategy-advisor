@@ -12,6 +12,7 @@ import {
 } from "./extract/vassals.js";
 import { extractExpansion, type ExpansionInfo } from "./extract/expansion.js";
 import { extractTitles, type TitlesInfo } from "./extract/titles.js";
+import { extractCouncil, type CouncilInfo } from "./extract/council.js";
 
 export interface RealmOverview {
   rulerName: string;
@@ -35,6 +36,7 @@ export interface Snapshot {
   vassalCount: number;
   expansion: ExpansionInfo;
   titles: TitlesInfo;
+  council: CouncilInfo;
 }
 
 function num(v: unknown): number | null {
@@ -67,6 +69,12 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
     const { factions, memberIds } = extractFactions(q, loc);
     const { vassals, total: vassalCount } = extractVassals(q, loc, memberIds);
     const titles = extractTitles(q, loc);
+    const rawDate = q.at("/date");
+    const council = extractCouncil(
+      q,
+      loc,
+      rawDate instanceof Date ? rawDate.getUTCFullYear() : null,
+    );
     return {
       date,
       parsedAt: Date.now(),
@@ -79,6 +87,7 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
       vassals,
       vassalCount,
       titles,
+      council,
     };
   });
 }

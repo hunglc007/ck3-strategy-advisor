@@ -79,19 +79,20 @@ Or in **Claude Desktop**, add to `claude_desktop_config.json`:
 
 ## Tools
 
-| Tool             | What it returns                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `realm_overview` | Ruler, primary title & tier, house, gold/prestige/piety, date. Start here.            |
-| `military`       | Levy + total mobilised strength, and ongoing wars (side, casus belli, target, score). |
-| `succession`     | Heirs in order, succession & gender laws, rival claimants.                            |
-| `diplomacy`      | Alliances, truces, independence, and who most dislikes you.                           |
-| `vassals`        | Your most powerful vassals: power owed, opinion, council seat, faction danger flag.   |
-| `titles`         | Titles you personally hold, grouped by tier, each with its de jure liege.             |
-| `factions`       | Factions targeting you: type, strength vs. their threshold, members, leader.          |
-| `expansion`      | Stored claims (pressed/unpressed), unheld de jure titles, ongoing-war targets.        |
-| `find_character` | Search living characters by (partial) name → ids.                                     |
-| `character`      | Full dossier for one character id: traits, skills, wealth, claims.                    |
-| `foreign_realm`  | Look up any realm by name/key — ruler, army, allies, liege, active wars.              |
+| Tool             | What it returns                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `realm_overview` | Ruler, primary title & tier, house, gold/prestige/piety, date. Start here.                 |
+| `military`       | Levy + total mobilised strength, and ongoing wars (side, casus belli, target, score).      |
+| `succession`     | Heirs in order, succession & gender laws, rival claimants.                                 |
+| `diplomacy`      | Alliances, truces, independence, and who most dislikes you.                                |
+| `vassals`        | Your most powerful vassals: power owed, opinion, council seat, faction danger flag.        |
+| `titles`         | Titles you personally hold, grouped by tier, each with its de jure liege.                  |
+| `factions`       | Factions targeting you: type, strength vs. their threshold, members, leader.               |
+| `expansion`      | Stored claims (pressed/unpressed), unheld de jure titles, ongoing-war targets.             |
+| `find_character` | Search living characters by (partial) name → ids.                                          |
+| `character`      | Full dossier for one character id: traits, skills, wealth, claims.                         |
+| `foreign_realm`  | Look up any realm by name/key — ruler, army, allies, liege, active wars.                   |
+| `council`        | Council seats, every courtier with skills/traits, and a suggested skill-optimal reshuffle. |
 
 ## Known limitations (v1)
 
