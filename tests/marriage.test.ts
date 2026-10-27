@@ -1,0 +1,42 @@
+import { expect, test } from "vitest";
+import { queryGamestate } from "../src/parser.js";
+import { Localizer } from "../src/localization.js";
+import { extractMarriageCandidates } from "../src/extract/marriage.js";
+
+const GS = Buffer.from(`
+traits_lookup={ "just" }
+played_character={ character=1 player=1 }
+rites={ database={ 1={ faith=13 } 2={ faith=13 } 3={ faith=9 } } }
+landed_titles={ landed_titles={
+10={ key="k_ireland" name="Ireland" de_jure_vassals={ 11 } }
+11={ key="d_munster" name="Munster" holder=1 de_jure_liege=10 }
+12={ key="k_france" name="France" holder=9 }
+} }
+living={
+1={ first_name="Murchad" birth=1027.1.1 culture=75 rite=1 dynasty_house=100 skill={ 10 12 6 3 3 12 } landed_data={ domain={ 11 } strength=800 } }
+2={ first_name="Aoife" birth=1042.1.1 female=yes culture=75 rite=2 skill={ 5 5 8 5 5 5 } traits={ 0 } alive_data={ fertility=0.6 } }
+3={ first_name="Married" birth=1042.1.1 female=yes culture=75 rite=1 family_data={ spouse=99 } }
+4={ first_name="OtherFaith" birth=1042.1.1 female=yes culture=75 rite=3 }
+5={ first_name="SameHouse" birth=1042.1.1 female=yes culture=75 rite=1 dynasty_house=100 }
+6={ first_name="Man" birth=1042.1.1 culture=75 rite=1 }
+7={ first_name="Child" birth=1058.1.1 female=yes culture=75 rite=1 }
+8={ first_name="Aelis" birth=1040.1.1 female=yes culture=12 rite=1 court_data={ employer=9 } alive_data={ fertility=0.9 } skill={ 5 5 20 5 5 5 } }
+9={ first_name="Louis" landed_data={ domain={ 12 } strength=4000 } }
+}
+`);
+
+test("lists unmarried same-faith adult women outside your house, local first", async () => {
+  const r = await queryGamestate(GS, (q) =>
+    extractMarriageCandidates(q, new Localizer(null), 1066),
+  );
+  expect(r!.you.age).toBe(39);
+  expect(r!.candidates.map((c) => c.name)).toEqual(["Aoife", "Aelis"]);
+  const aoife = r!.candidates[0]!;
+  expect(aoife.sameCulture).toBe(true);
+  expect(aoife.fertility).toBe(0.6);
+  expect(aoife.home).toBeNull();
+  const aelis = r!.candidates[1]!;
+  expect(aelis.home?.name).toBe("Louis");
+  expect(aelis.home?.realm).toBe("France");
+  expect(aelis.nearby).toBe(false);
+});

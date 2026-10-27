@@ -11,6 +11,8 @@ import { registerExpansionTool } from "./expansion.js";
 import { registerTitlesTool } from "./titles.js";
 import { registerForeignRealmTool } from "./foreignRealm.js";
 import { registerCouncilTool } from "./council.js";
+import { registerTargetsTool } from "./targets.js";
+import { registerMarriageTool } from "./marriage.js";
 
 export function registerAllTools(server: McpServer, cache: SnapshotCache) {
   registerOverview(server, cache);
@@ -24,4 +26,6 @@ export function registerAllTools(server: McpServer, cache: SnapshotCache) {
   registerTitlesTool(server, cache);
   registerForeignRealmTool(server, cache);
   registerCouncilTool(server, cache);
+  registerTargetsTool(server, cache);
+  registerMarriageTool(server, cache);
 }

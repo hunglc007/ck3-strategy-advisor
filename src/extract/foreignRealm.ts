@@ -90,7 +90,7 @@ export function findBestTitle(q: Query, loc: Localizer, name: string): number | 
 }
 
 // Alliances for a ruler — mirrors the diplomacy extractor, keyed by holder id.
-function collectAllies(q: Query, loc: Localizer, holderId: number): AllyRef[] {
+export function collectAllies(q: Query, loc: Localizer, holderId: number): AllyRef[] {
   const out: AllyRef[] = [];
   forEachRelation(q, holderId, (otherId, entry) => {
     if (entry["alliances"] == null) return;
@@ -102,7 +102,7 @@ function collectAllies(q: Query, loc: Localizer, holderId: number): AllyRef[] {
 }
 
 // Active wars a ruler participates in — mirrors the military extractor.
-function collectWars(q: Query, loc: Localizer, holderId: number): ForeignWar[] {
+export function collectWars(q: Query, loc: Localizer, holderId: number): ForeignWar[] {
   const out: ForeignWar[] = [];
   forEachWar(q, holderId, (side, war) => {
     const cb = war["casus_belli"] as Record<string, unknown> | undefined;
