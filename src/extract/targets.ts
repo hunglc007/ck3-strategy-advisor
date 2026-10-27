@@ -37,8 +37,8 @@ function num(v: unknown): number | null {
   return typeof v === "number" ? v : null;
 }
 
-function name(q: Query, id: number): string {
-  return String(q.at(`/living/${id}/first_name`) ?? "unknown");
+function name(q: Query, loc: Localizer, id: number): string {
+  return loc.charName(q.at(`/living/${id}/first_name`) ?? "unknown");
 }
 
 /** Climb de_jure_liege from `id` until a kingdom/empire title; the start itself counts. */
@@ -111,7 +111,7 @@ export function extractTargets(
       typeof liegeHolder === "number"
         ? {
             id: liegeHolder,
-            name: name(q, liegeHolder),
+            name: name(q, loc, liegeHolder),
             strength: num(q.at(`/living/${liegeHolder}/landed_data/strength`)),
           }
         : null;
@@ -126,7 +126,7 @@ export function extractTargets(
       duchy: dejureDuchy !== undefined ? resolveTitleName(q, loc, dejureDuchy) : "?",
       baronies: ((q.at(`${t}/de_jure_vassals`) as number[] | undefined) ?? []).length,
       holderId,
-      holder: name(q, holderId),
+      holder: name(q, loc, holderId),
       holderStrength,
       holderGold: num(q.at(`/living/${holderId}/alive_data/gold/value`)),
       liege,

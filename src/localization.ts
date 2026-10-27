@@ -16,11 +16,25 @@ export class Localizer {
   private provinces: Map<number, ProvinceRegion> | null = null;
   private positions: Map<number, [number, number]> | null = null;
 
-  constructor(private gameDir: string | null) {
+  constructor(
+    private gameDir: string | null,
+    modLocalizationDirs: string[] = [],
+  ) {
     if (gameDir) {
       this.loadDir(join(gameDir, "localization", "english"));
       this.traitSkills = loadTraitSkills(gameDir);
     }
+    // Enabled mods load after the base game, so their strings override it (as in the game).
+    for (const dir of modLocalizationDirs) this.loadDir(dir);
+  }
+
+  /**
+   * Display name for a character's stored first_name. The save holds a localization key
+   * (e.g. RO_gnvaldr) and the game shows the localized text (Rögnvaldr).
+   */
+  charName(raw: unknown): string {
+    const key = typeof raw === "string" ? raw : String(raw ?? "");
+    return this.map.get(key) ?? key;
   }
 
   /** Raw trait key (e.g. "lifestyle_reveler") for a per-save trait index. */
@@ -97,6 +111,8 @@ export class Localizer {
 
   resolveTrait(idx: number): string {
     const ident = this.traitLookup?.[idx];
-    return ident ? this.resolve(ident) : `trait_${idx}`;
+    if (!ident) return `trait_${idx}`;
+    // The game stores a trait's display text under trait_<key>; fall back to the bare key.
+    return this.map.get(`trait_${ident}`) ?? this.resolve(ident);
   }
 }

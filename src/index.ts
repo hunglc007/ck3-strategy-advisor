@@ -5,6 +5,8 @@ import { resolveConfig, discoverSaveDir } from "./config.js";
 import { SaveFileSource } from "./source.js";
 import { SnapshotCache } from "./cache.js";
 import { Localizer } from "./localization.js";
+import { modLocalizationDirs } from "./mods.js";
+import { dirname } from "node:path";
 import { registerAllTools } from "./tools/index.js";
 
 async function main() {
@@ -14,7 +16,10 @@ async function main() {
     console.error("No CK3 save dir found. Set CK3_SAVE_DIR.");
     process.exit(1);
   }
-  const cache = new SnapshotCache(new SaveFileSource({ saveDir }), new Localizer(cfg.gameDir));
+  const cache = new SnapshotCache(
+    new SaveFileSource({ saveDir }),
+    new Localizer(cfg.gameDir, modLocalizationDirs(dirname(saveDir))),
+  );
   const server = new McpServer(
     { name: "ck3-strategy-advisor", version: "0.1.0" },
     {

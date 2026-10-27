@@ -72,7 +72,7 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
 
   return {
     id,
-    name: String(firstName),
+    name: loc.charName(firstName),
     skills,
     traits,
     gold,
@@ -90,10 +90,19 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
 // underscores and lowercase so a plain query ("crichan") matches. This only
 // removes separators, so it never matches less than a bare lowercase compare.
 function normalizeName(s: string): string {
-  return s.toLowerCase().replace(/_/g, "");
+  // Also drop diacritics so "Patraic" finds "Pátraic".
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[_\s-]/g, "");
 }
 
-export function findCharacters(text: string, name: string): CharacterMatch[] {
+export function findCharacters(
+  text: string,
+  name: string,
+  display: (raw: string) => string = (s) => s,
+): CharacterMatch[] {
   const start = text.indexOf("\nliving={");
   if (start === -1) return [];
   // end = next top-level key after living's opening
@@ -108,9 +117,10 @@ export function findCharacters(text: string, name: string): CharacterMatch[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null && m.index < end) {
     // Both capture groups are non-optional in the regex, so a successful
-    // exec guarantees m[1] and m[2] are defined.
-    if (normalizeName(m[2]!).includes(needle))
-      out.push({ id: Number(m[1]!), name: m[2]!, primaryTitle: null });
+    // exec guarantees m[1] and m[2] are defined. Match the stored key or the name the game shows.
+    const shown = display(m[2]!);
+    if (normalizeName(m[2]!).includes(needle) || normalizeName(shown).includes(needle))
+      out.push({ id: Number(m[1]!), name: shown, primaryTitle: null });
   }
   return out;
 }

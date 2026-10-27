@@ -50,8 +50,8 @@ function tierRank(t: TitleTier): number {
   }
 }
 
-function charName(q: Query, id: number): string {
-  return String(q.at(`/living/${id}/first_name`) ?? "unknown");
+function charName(q: Query, loc: Localizer, id: number): string {
+  return loc.charName(q.at(`/living/${id}/first_name`) ?? "unknown");
 }
 
 // Best-match title id for a free-text realm name or key.
@@ -96,7 +96,7 @@ export function collectAllies(q: Query, loc: Localizer, holderId: number): AllyR
     if (entry["alliances"] == null) return;
     const domain = (q.at(`/living/${otherId}/landed_data/domain`) as number[] | undefined) ?? [];
     const realm = domain[0] !== undefined ? resolveTitleName(q, loc, domain[0]) : null;
-    out.push({ id: otherId, name: charName(q, otherId), realm });
+    out.push({ id: otherId, name: charName(q, loc, otherId), realm });
   });
   return out;
 }
@@ -164,7 +164,7 @@ export function extractForeignRealm(
       | number
       | undefined;
     if (typeof liegeHolder === "number")
-      liege = { id: liegeHolder, name: charName(q, liegeHolder) };
+      liege = { id: liegeHolder, name: charName(q, loc, liegeHolder) };
   }
 
   const allies = typeof holderId === "number" ? collectAllies(q, loc, holderId) : [];

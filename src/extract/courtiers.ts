@@ -100,7 +100,7 @@ export function extractPool(
     else if (keys.some((k) => MILD_TRAITS.test(k))) flags.push("unreliable trait");
     characters.push({
       id: Number(idStr),
-      name: String(c["first_name"] ?? idStr),
+      name: loc.charName(c["first_name"] ?? idStr),
       age,
       female: c["female"] === true || c["female"] === "yes",
       skills: effectiveSkills(

@@ -27,7 +27,7 @@ export function registerCharacterTools(server: McpServer, cache: SnapshotCache) 
         return { isError: true, content: [{ type: "text", text: textResult.error }] };
       const text = textResult;
 
-      const all = findCharacters(text, name);
+      const all = findCharacters(text, name, (r) => cache.loc.charName(r));
       if (all.length === 0) {
         // FIX B: stamp the zero-match response
         return {

@@ -64,7 +64,7 @@ export function extractFactions(
     let leaderName: string | null = null;
     if (typeof leaderId === "number") {
       const raw = q.at(`/living/${leaderId}/first_name`);
-      leaderName = typeof raw === "string" ? raw : null;
+      leaderName = typeof raw === "string" ? loc.charName(raw) : null;
     }
 
     factions.push({
@@ -144,7 +144,7 @@ export function extractVassals(
   // 6. Build final vassal list
   const vassals = topEntries.map(({ id, strength }) => {
     const raw = q.at(`/living/${id}/first_name`);
-    const name = typeof raw === "string" ? raw : String(raw ?? id);
+    const name = loc.charName(typeof raw === "string" ? raw : String(raw ?? id));
     return {
       id,
       name,
