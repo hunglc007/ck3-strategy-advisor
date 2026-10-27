@@ -22,7 +22,7 @@ export function registerCourtiersTool(server: McpServer, cache: SnapshotCache) {
     {
       title: "Court Candidates",
       description:
-        "Same-faith adults (16-55) who belong to nobody's court and hold no land, i.e. people you could invite, limited to your de jure kingdom or empire by where they are now (scope). For each council seat, shows the best of them against your current holder and whether the gap is worth an invitation (3+ points), plus the best knights/commanders by martial and prowess. Willingness and cost are not in the save, so check acceptance in game.",
+        "Same-faith adults (16-55) who belong to nobody's court and hold no land, i.e. people you could invite, limited to your de jure kingdom or empire by where they are now (scope). For each council seat, shows the best of them against your current holder and whether the gap is worth an invitation (3+ points), plus the best knights/commanders by martial and prowess. This is a map of who exists, not of who you can hire: the game does not let you search freely. Hiring for a court position (e.g. court physician) offers only a few pool characters in your capital province or newly generated ones, at a gold cost of months of income, so most people listed here may not be reachable. Willingness and cost are not in the save, so check acceptance in game.",
       inputSchema: {
         scope: z
           .enum(["kingdom", "empire", "all"])
