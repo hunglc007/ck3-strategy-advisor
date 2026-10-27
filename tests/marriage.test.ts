@@ -21,7 +21,8 @@ living={
 6={ first_name="Man" birth=1042.1.1 culture=75 rite=1 }
 7={ first_name="Child" birth=1058.1.1 female=yes culture=75 rite=1 }
 8={ first_name="Aelis" birth=1040.1.1 female=yes culture=12 rite=1 court_data={ employer=9 } alive_data={ fertility=0.9 } skill={ 5 5 20 5 5 5 } }
-9={ first_name="Louis" landed_data={ domain={ 12 } strength=4000 } }
+9={ first_name="Louis" family_data={ child={ 8 } } landed_data={ domain={ 12 } strength=4000 } }
+10={ first_name="Courtier" birth=1041.1.1 female=yes culture=12 rite=1 court_data={ employer=9 } skill={ 5 5 20 5 5 5 } }
 }
 `);
 
@@ -30,7 +31,7 @@ test("lists unmarried same-faith adult women outside your house, local first", a
     extractMarriageCandidates(q, new Localizer(null), 1066),
   );
   expect(r!.you.age).toBe(39);
-  expect(r!.candidates.map((c) => c.name)).toEqual(["Aoife", "Aelis"]);
+  expect(r!.candidates.map((c) => c.name)).toEqual(["Aoife", "Aelis", "Courtier"]);
   const aoife = r!.candidates[0]!;
   expect(aoife.sameCulture).toBe(true);
   expect(aoife.fertility).toBe(0.6);
@@ -39,4 +40,17 @@ test("lists unmarried same-faith adult women outside your house, local first", a
   expect(aelis.home?.name).toBe("Louis");
   expect(aelis.home?.realm).toBe("France");
   expect(aelis.nearby).toBe(false);
+});
+
+test("an alliance only counts for a daughter or sister of the ruler, and priority ranking leads with it", async () => {
+  const run = (opts: { rank?: "local" | "priority"; minHomeStrength?: number }) =>
+    queryGamestate(GS, (q) => extractMarriageCandidates(q, new Localizer(null), 1066, 12, opts));
+  const r = await run({ rank: "priority" });
+  // The ruler's daughter leads on alliance strength; the mere courtier (STE 20) gets no alliance credit.
+  expect(r!.candidates[0]!.name).toBe("Aelis");
+  const byName = Object.fromEntries(r!.candidates.map((c) => [c.name, c]));
+  expect(byName["Aelis"]!.kinOfRuler).toBe("daughter");
+  expect(byName["Courtier"]!.kinOfRuler).toBeNull();
+  const strong = await run({ minHomeStrength: 1500 });
+  expect(strong!.candidates.map((c) => c.name).sort()).toEqual(["Aelis", "Courtier"]);
 });

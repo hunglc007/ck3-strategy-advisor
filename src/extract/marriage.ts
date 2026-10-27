@@ -9,6 +9,11 @@ export interface MarriageCandidate {
   age: number;
   skills: Skills;
   traits: string[];
+  /** Heritable good/bad traits (genetic quality of future children). */
+  goodGenes: string[];
+  badGenes: string[];
+  /** Titles they hold a claim on (up to 4), a possible future claim for your children. */
+  claims: string[];
   fertility: number | null;
   /** Whose court she/he is in (or the candidate if landed); null for the unattached pool. */
   home: { id: number; name: string; realm: string | null; strength: number | null } | null;
@@ -16,9 +21,18 @@ export interface MarriageCandidate {
   nearby: boolean;
   /** Same culture as you (a cheap stand-in for distance, which the save does not give). */
   sameCulture: boolean;
+  /**
+   * Relation to the ruler whose court they are in: only a close relative (daughter or
+   * sister, read from the living and dead parents' child lists) normally gives a marriage
+   * alliance. "self" when the candidate is the ruler; null for a mere courtier or unknown.
+   */
+  kinOfRuler: "daughter" | "sister" | "self" | null;
   /** Your own court member. */
   inYourCourt: boolean;
+  /** Default blend: local first, then fertility/skills/ally strength/genes. */
   score: number;
+  /** Alliance strength tier first, then youth+fertility, skills, genes, claims. */
+  priorityScore: number;
 }
 
 export interface MarriageInfo {
@@ -26,6 +40,12 @@ export interface MarriageInfo {
   faithMatched: number;
   candidates: MarriageCandidate[];
 }
+
+export type MarriageRank = "local" | "priority";
+
+const GOOD_GENES = /^((beauty|intellect|physique)_good_d|fecund|pure_blooded)$/;
+const BAD_GENES =
+  /^((beauty|intellect|physique)_bad_d|inbred|bleeder|clubfooted|hunchbacked|lisping|stuttering|weak|dull|spindly|scaly|albino|wheezing|infertile)$/;
 
 const MIN_AGE = 16;
 const MAX_AGE = 45;
@@ -55,6 +75,7 @@ export function extractMarriageCandidates(
   loc: Localizer,
   nowYear: number,
   limit = 12,
+  opts: { rank?: MarriageRank; minHomeStrength?: number } = {},
 ): MarriageInfo | null {
   loc.setTraitLookup((q.at("/traits_lookup") as string[]) ?? null);
   const playerId = q.at("/played_character/character") as number;
@@ -75,6 +96,32 @@ export function extractMarriageCandidates(
   const myKingdom = kingdomOf(q, myDomain[0]);
 
   const living = q.at("/living") as Record<string, Record<string, unknown>> | undefined;
+  // child -> parents, from living and dead characters, to recognise a ruler's daughters and sisters.
+  const parentsOf = new Map<number, number[]>();
+  const addFamilies = (src: unknown) => {
+    if (!src || typeof src !== "object") return;
+    for (const [pid, ch] of Object.entries(src as Record<string, Record<string, unknown>>)) {
+      const kids = (ch?.["family_data"] as Record<string, unknown> | undefined)?.["child"];
+      if (!Array.isArray(kids)) continue;
+      for (const k of kids) {
+        if (typeof k !== "number") continue;
+        const arr = parentsOf.get(k);
+        if (arr) arr.push(Number(pid));
+        else parentsOf.set(k, [Number(pid)]);
+      }
+    }
+  };
+  addFamilies(living);
+  addFamilies(q.at("/dead_unprunable"));
+  const kinOf = (id: number, rulerId: number | null): MarriageCandidate["kinOfRuler"] => {
+    if (rulerId === null) return null;
+    if (rulerId === id) return "self";
+    const mine = parentsOf.get(id) ?? [];
+    if (mine.includes(rulerId)) return "daughter";
+    const theirs = parentsOf.get(rulerId) ?? [];
+    return mine.some((p) => theirs.includes(p)) ? "sister" : null;
+  };
+
   const found: MarriageCandidate[] = [];
   let faithMatched = 0;
   if (living) {
@@ -127,6 +174,22 @@ export function extractMarriageCandidates(
       const fertility = num(
         (c["alive_data"] as Record<string, unknown> | undefined)?.["fertility"],
       );
+      if (opts.minHomeStrength !== undefined && (realm?.strength ?? 0) < opts.minHomeStrength)
+        continue;
+      const keys = traitIdx.map((i) => loc.traitKey(i) ?? "");
+      const goodGenes = traitIdx
+        .filter((_, i) => GOOD_GENES.test(keys[i]!))
+        .map((i) => loc.resolveTrait(i));
+      const badGenes = traitIdx
+        .filter((_, i) => BAD_GENES.test(keys[i]!))
+        .map((i) => loc.resolveTrait(i));
+      const claimTitles = (
+        ((c["alive_data"] as Record<string, unknown> | undefined)?.["claim"] as
+          | Array<{ title?: number }>
+          | undefined) ?? []
+      )
+        .map((cl) => cl?.title)
+        .filter((t): t is number => typeof t === "number");
       const nearby = realm?.nearby ?? false;
       const sameCulture = me["culture"] !== undefined && c["culture"] === me["culture"];
       const score =
@@ -135,8 +198,21 @@ export function extractMarriageCandidates(
         skills.diplomacy / 2 +
         Math.min(8, (realm?.strength ?? 0) / 400) +
         (nearby ? 10 : 0) +
-        (sameCulture ? 4 : 0) -
+        (sameCulture ? 4 : 0) +
+        goodGenes.length * 2 -
+        badGenes.length * 3 -
         Math.max(0, age - 35) * 0.5;
+
+      const kinOfRuler = kinOf(id, homeId);
+      const allyStrength = kinOfRuler !== null ? (realm?.strength ?? 0) : 0;
+      const tier =
+        allyStrength >= 3000 ? 3 : allyStrength >= 1500 ? 2 : allyStrength >= 800 ? 1 : 0;
+      const priorityScore =
+        tier * 100 +
+        ((fertility ?? 0.5) * 10 + (age <= 25 ? 3 : 0) - Math.max(0, age - 30)) * 3 +
+        (skills.stewardship + skills.diplomacy) * 0.7 +
+        (goodGenes.length - badGenes.length) * 3 +
+        claimTitles.length;
 
       found.push({
         id,
@@ -144,21 +220,27 @@ export function extractMarriageCandidates(
         age,
         skills,
         traits: traitIdx.map((i) => loc.resolveTrait(i)),
+        goodGenes,
+        badGenes,
+        claims: claimTitles.slice(0, 4).map((t) => resolveTitleName(q, loc, t)),
         fertility,
         home: realm
           ? { id: realm.id, name: realm.name, realm: realm.realm, strength: realm.strength }
           : null,
         nearby,
         sameCulture,
+        kinOfRuler,
         inYourCourt: employer === playerId,
         score,
+        priorityScore,
       });
     }
   }
 
   // Local (same region or culture) first: skills alone would send a Munster king to Germany.
   const local = (c: MarriageCandidate) => Number(c.nearby || c.sameCulture);
-  found.sort((a, b) => local(b) - local(a) || b.score - a.score);
+  if (opts.rank === "priority") found.sort((a, b) => b.priorityScore - a.priorityScore);
+  else found.sort((a, b) => local(b) - local(a) || b.score - a.score);
   return {
     you: {
       id: playerId,
