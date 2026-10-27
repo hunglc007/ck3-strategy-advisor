@@ -1,5 +1,6 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
+import { effectiveSkills } from "./skills.js";
 
 export type CouncilRole = "chancellor" | "steward" | "marshal" | "spymaster" | "court_chaplain";
 export type SkillKey = "diplomacy" | "martial" | "stewardship" | "intrigue" | "learning";
@@ -75,22 +76,21 @@ export function extractCouncil(q: Query, loc: Localizer, nowYear: number | null)
       const court = c["court_data"] as Record<string, unknown> | undefined;
       if (!court || court["employer"] !== playerId) continue;
       const id = Number(idStr);
-      const sk = (c["skill"] as number[] | undefined) ?? [];
+      const traitIdx = (c["traits"] as number[] | undefined) ?? [];
+      const skills = effectiveSkills(
+        loc,
+        (c["skill"] as number[] | undefined) ?? [],
+        traitIdx,
+        (c["trait_xp_amounts"] as number[] | undefined) ?? [],
+      ).total;
       const birth = c["birth"];
       const birthYear = birth instanceof Date ? birth.getUTCFullYear() : null;
       courtiers.push({
         id,
         name: String(c["first_name"] ?? id),
         age: birthYear !== null && nowYear !== null ? nowYear - birthYear : null,
-        skills: {
-          diplomacy: sk[0] ?? 0,
-          martial: sk[1] ?? 0,
-          stewardship: sk[2] ?? 0,
-          intrigue: sk[3] ?? 0,
-          learning: sk[4] ?? 0,
-          prowess: sk[5] ?? 0,
-        },
-        traits: ((c["traits"] as number[] | undefined) ?? []).map((i) => loc.resolveTrait(i)),
+        skills,
+        traits: traitIdx.map((i) => loc.resolveTrait(i)),
         knight: court["knight"] === true || court["knight"] === "yes",
         seat: seatOf.get(id) ?? null,
       });

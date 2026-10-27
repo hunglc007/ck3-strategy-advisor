@@ -1,6 +1,7 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName } from "./titleUtils.js";
+import { effectiveSkills } from "./skills.js";
 
 export interface CharacterInfo {
   id: number;
@@ -37,19 +38,12 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
   const traitsLookup = q.at("/traits_lookup") as string[] | null | undefined;
   loc.setTraitLookup(traitsLookup ?? null);
 
-  // Skills: array[6] = diplomacy, martial, stewardship, intrigue, learning, prowess
+  // Skills: save stores base values (diplomacy, martial, stewardship, intrigue, learning,
+  // prowess); add trait modifiers so the numbers match the in-game character sheet.
   const skillArr = (q.at(`/living/${id}/skill`) as number[] | undefined) ?? [];
-  const skills = {
-    diplomacy: skillArr[0] ?? 0,
-    martial: skillArr[1] ?? 0,
-    stewardship: skillArr[2] ?? 0,
-    intrigue: skillArr[3] ?? 0,
-    learning: skillArr[4] ?? 0,
-    prowess: skillArr[5] ?? 0,
-  };
-
-  // Traits
   const traitIndices = (q.at(`/living/${id}/traits`) as number[] | undefined) ?? [];
+  const xp = (q.at(`/living/${id}/trait_xp_amounts`) as number[] | undefined) ?? [];
+  const skills = effectiveSkills(loc, skillArr, traitIndices, xp).total;
   const traits = traitIndices.map((idx) => loc.resolveTrait(idx));
 
   // Financial/status data

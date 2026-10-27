@@ -1,13 +1,28 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { loadTraitSkills, type TraitSkillData } from "./traitSkills.js";
 
 export class Localizer {
   private map = new Map<string, string>();
   private traitLookup: string[] | null = null;
   private warned = false;
+  private traitSkills = new Map<string, TraitSkillData>();
 
   constructor(gameDir: string | null) {
-    if (gameDir) this.loadDir(join(gameDir, "localization", "english"));
+    if (gameDir) {
+      this.loadDir(join(gameDir, "localization", "english"));
+      this.traitSkills = loadTraitSkills(gameDir);
+    }
+  }
+
+  /** Raw trait key (e.g. "lifestyle_reveler") for a per-save trait index. */
+  traitKey(idx: number): string | null {
+    return this.traitLookup?.[idx] ?? null;
+  }
+
+  /** Skill modifiers a trait grants, from the game's common/traits files. */
+  traitSkillData(key: string): TraitSkillData | undefined {
+    return this.traitSkills.get(key);
   }
 
   private loadDir(dir: string): void {
