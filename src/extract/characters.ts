@@ -1,7 +1,9 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName } from "./titleUtils.js";
+import type { GameLookup } from "../gameLookup.js";
 import { charName, characterAge, num } from "./common.js";
+import { effectiveSkills, type EffectiveSkills, type SkillSet } from "./skills.js";
 
 export interface CharacterInfo {
   id: number;
@@ -10,14 +12,10 @@ export interface CharacterInfo {
   female: boolean;
   /** Name of the ruler whose court this character is in, if any. */
   employer: string | null;
-  skills: {
-    diplomacy: number;
-    martial: number;
-    stewardship: number;
-    intrigue: number;
-    learning: number;
-    prowess: number;
-  };
+  /** Base skills plus trait bonuses (base only when no game files are available). */
+  skills: SkillSet;
+  /** Base, trait bonus and effective skills side by side. */
+  skillDetail: EffectiveSkills;
   traits: string[];
   gold: number | null;
   prestige: number | null;
@@ -34,7 +32,12 @@ export interface CharacterMatch {
   primaryTitle: string | null;
 }
 
-export function extractCharacter(q: Query, loc: Localizer, id: number): CharacterInfo | null {
+export function extractCharacter(
+  q: Query,
+  loc: Localizer,
+  id: number,
+  lookup: GameLookup | null = null,
+): CharacterInfo | null {
   const firstName = q.at(`/living/${id}/first_name`);
   if (firstName === undefined) return null;
 
@@ -42,16 +45,10 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
   const traitsLookup = q.at("/traits_lookup") as string[] | null | undefined;
   loc.setTraitLookup(traitsLookup ?? null);
 
-  // Skills: array[6] = diplomacy, martial, stewardship, intrigue, learning, prowess
-  const skillArr = (q.at(`/living/${id}/skill`) as number[] | undefined) ?? [];
-  const skills = {
-    diplomacy: skillArr[0] ?? 0,
-    martial: skillArr[1] ?? 0,
-    stewardship: skillArr[2] ?? 0,
-    intrigue: skillArr[3] ?? 0,
-    learning: skillArr[4] ?? 0,
-    prowess: skillArr[5] ?? 0,
-  };
+  // The save's `skill` array is base skill; effectiveSkills adds trait bonuses when the
+  // game files are available (otherwise `skills` equals the base values).
+  const skillDetail = effectiveSkills(q, loc, lookup, id);
+  const skills = skillDetail.effective;
 
   // Traits
   const traitIndices = (q.at(`/living/${id}/traits`) as number[] | undefined) ?? [];
@@ -95,6 +92,7 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
     female: q.at(`/living/${id}/female`) === true,
     employer,
     skills,
+    skillDetail,
     traits,
     gold,
     prestige,

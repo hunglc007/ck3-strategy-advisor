@@ -92,6 +92,11 @@ export class Localizer {
     );
   }
 
+  /** The game's identifier for a trait index (e.g. "eccentric"), or null if unknown. */
+  traitIdentifier(idx: number): string | null {
+    return this.traitLookup?.[idx] ?? null;
+  }
+
   resolveTrait(idx: number): string {
     const ident = this.traitLookup?.[idx];
     if (!ident) return `trait_${idx}`;

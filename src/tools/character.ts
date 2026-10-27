@@ -4,6 +4,7 @@ import type { SnapshotCache } from "../cache.js";
 import { extractCharacter, findCharacters } from "../extract/characters.js";
 import { resolveTitleName } from "../extract/titleUtils.js";
 import { stamp, truncate } from "../format.js";
+import { SKILL_NOTE, formatEffective } from "../extract/skills.js";
 
 export function registerCharacterTools(server: McpServer, cache: SnapshotCache) {
   server.registerTool(
@@ -68,7 +69,8 @@ export function registerCharacterTools(server: McpServer, cache: SnapshotCache) 
       title: "Character",
       description:
         "Detailed dossier for one character by id — needs an id; use `find_character` if you only have a name. " +
-        "Traits, skills, gold/prestige/piety, health/stress, primary title, and claims " +
+        "Traits, skills (base + trait bonuses estimated from the game files, base in brackets; perks/artifacts/" +
+        "temporary modifiers not included), gold/prestige/piety, health/stress, primary title, and claims " +
         "(pressed/unpressed; CK3 does not store strong/weak).",
       inputSchema: { id: z.number().describe("character id, e.g. from find_character") },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -78,7 +80,7 @@ export function registerCharacterTools(server: McpServer, cache: SnapshotCache) 
       const snap = await cache.get();
       if ("error" in snap) return { isError: true, content: [{ type: "text", text: snap.error }] };
 
-      const result = await cache.query((q) => extractCharacter(q, cache.loc, id));
+      const result = await cache.query((q) => extractCharacter(q, cache.loc, id, cache.lookup));
       if (result !== null && typeof result === "object" && "error" in result) {
         return {
           isError: true,
@@ -91,9 +93,7 @@ export function registerCharacterTools(server: McpServer, cache: SnapshotCache) 
         // FIX B: stamp character not-found response
         return { content: [{ type: "text", text: stamp(snap, `No character with id ${id}.`) }] };
       }
-      const skillLine =
-        `Dip ${c.skills.diplomacy} | Mar ${c.skills.martial} | Stw ${c.skills.stewardship} | ` +
-        `Int ${c.skills.intrigue} | Lrn ${c.skills.learning} | Prw ${c.skills.prowess}`;
+      const skillLine = formatEffective(c.skillDetail);
       const traitsLine = c.traits.length > 0 ? c.traits.join(", ") : "none";
       const claimsLine =
         c.claims.length > 0
@@ -105,11 +105,11 @@ export function registerCharacterTools(server: McpServer, cache: SnapshotCache) 
         `- ${c.female ? "Female" : "Male"}, age ${c.age ?? "?"}` +
         `${c.employer ? ` | At the court of ${c.employer}` : ""}\n` +
         `- Primary title: ${c.primaryTitle ?? "none"}\n` +
-        `- Skills: ${skillLine}\n` +
+        `- Skills: ${skillLine}${c.skillDetail.incomplete ? " (some trait bonuses not counted)" : ""}\n` +
         `- Traits: ${traitsLine}\n` +
         `- Gold: ${c.gold ?? "?"} | Prestige: ${c.prestige ?? "?"} | Piety: ${c.piety ?? "?"}\n` +
         `- Health: ${c.health ?? "?"} | Stress: ${c.stress ?? "?"}\n` +
-        `- Claims: ${claimsLine}`;
+        `- Claims: ${claimsLine}\n\n_${SKILL_NOTE}_`;
 
       return { content: [{ type: "text", text: stamp(snap, body) }] };
     },

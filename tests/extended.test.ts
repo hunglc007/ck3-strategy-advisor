@@ -78,7 +78,7 @@ test("alerts group the player's important actions and skip other players'", asyn
 });
 
 test("court resolves council tasks, court positions, knights and best courtiers", async () => {
-  const court = await queryGamestate(GS, (q) => extractCourt(q, loc, 2));
+  const court = await queryGamestate(GS, (q) => extractCourt(q, loc, null, 2));
   expect(court.council.map((c) => [c.task, c.member.name])).toEqual([
     ["task_collect_taxes", "Donal"],
     ["task_foreign_affairs", "Conchobar"],

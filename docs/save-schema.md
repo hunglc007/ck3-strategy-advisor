@@ -274,6 +274,8 @@ Corrections to the sections above:
 - **Title names:** current names live at `/landed_titles/landed_titles/{id}/title_name_data/name` (cultural names such as "Luimneach" for `b_limerick`); history entries there hold raw keys.
 - **CK3_GAME_DIR** may be the install root; localization lives under `<root>/game/localization`. `gameData.ts#resolveGameRoot` accepts both.
 - **Trait localization** is keyed `trait_<id>` in the game files (`trait_arrogant`), not the bare `traits_lookup` identifier.
+- **Skills are base values.** `/living/{id}/skill` (diplomacy, martial, stewardship, intrigue, learning, prowess) excludes trait modifiers; the game adds them (and perks, artifacts, temporary modifiers) at runtime and does not store the total. Verified: a character with Eccentric (+2 learning, −2 diplomacy in `common/traits`) has saved learning 10 and shows 12 in game.
+- **Trait XP:** `/living/{id}/trait_xp_amounts` lists the XP of the character's *tracked* traits (those with a `track = { <xp> = { ... } }` block, e.g. `lifestyle_reveler`), in the order they appear in `traits`. `extract/skills.ts` only applies it when the count matches the number of tracked traits.
 
 New sections used by the 1.20 tools:
 

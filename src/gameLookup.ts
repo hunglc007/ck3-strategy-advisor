@@ -345,8 +345,79 @@ export interface SearchHit {
   score: number;
 }
 
+export const SKILLS = [
+  "diplomacy",
+  "martial",
+  "stewardship",
+  "intrigue",
+  "learning",
+  "prowess",
+] as const;
+export type Skill = (typeof SKILLS)[number];
+export type SkillDelta = Partial<Record<Skill, number>>;
+
+export interface TraitSkills {
+  /** Skill modifiers that always apply. */
+  fixed: SkillDelta;
+  /** Extra modifiers unlocked at an XP threshold (lifestyle/education `track`). */
+  tracks: { threshold: number; bonus: SkillDelta }[];
+  /** True if a skill modifier was a named value rather than a number (not counted). */
+  unresolved: boolean;
+}
+
+const SKILL_LINE = new RegExp(`^\\s*(${SKILLS.join("|")})\\s*=\\s*(\\S+)\\s*$`);
+
+// Read a trait block's skill modifiers: the ones directly inside the trait, and
+// the ones inside `track = { <xp> = { ... } }` tiers. Only plain `skill = N`
+// lines are counted; modifiers that depend on conditions or scripted values
+// (e.g. `diplomacy_per_prestige_level`) are not.
+export function parseTraitSkills(block: string): TraitSkills {
+  const out: TraitSkills = { fixed: {}, tracks: [], unresolved: false };
+  let depth = 0;
+  let inTrack = false;
+  let trackDepth = 0;
+  let tier: { threshold: number; bonus: SkillDelta } | null = null;
+  const add = (target: SkillDelta, skill: Skill, raw: string) => {
+    const value = Number(raw);
+    if (Number.isFinite(value)) target[skill] = (target[skill] ?? 0) + value;
+    else out.unresolved = true;
+  };
+  for (const rawLine of block.split("\n")) {
+    const line = rawLine.replace(/#.*$/, "");
+    const opens = (line.match(/\{/g) ?? []).length;
+    const closes = (line.match(/\}/g) ?? []).length;
+    if (!inTrack && depth === 1 && /^\s*track\s*=\s*\{/.test(line)) {
+      inTrack = true;
+      trackDepth = depth;
+    } else if (inTrack && depth === trackDepth + 1) {
+      const t = /^\s*(\d+)\s*=\s*\{(.*)$/.exec(line);
+      if (t) {
+        tier = { threshold: Number(t[1]), bonus: {} };
+        out.tracks.push(tier);
+        // a whole tier on one line: `50 = { diplomacy = 1 }`
+        for (const m of t[2]!.matchAll(/(\w+)\s*=\s*(-?[\w.]+)/g)) {
+          if ((SKILLS as readonly string[]).includes(m[1]!)) add(tier.bonus, m[1] as Skill, m[2]!);
+        }
+      }
+    } else if (inTrack && tier && depth === trackDepth + 2) {
+      const m = SKILL_LINE.exec(line);
+      if (m) add(tier.bonus, m[1] as Skill, m[2]!);
+    } else if (!inTrack && depth === 1) {
+      const m = SKILL_LINE.exec(line);
+      if (m) add(out.fixed, m[1] as Skill, m[2]!);
+    }
+    depth += opens - closes;
+    if (inTrack && depth <= trackDepth) {
+      inTrack = false;
+      tier = null;
+    }
+  }
+  return out;
+}
+
 export class GameLookup {
   private index = new Map<string, Map<string, Entry>>();
+  private traitSkills = new Map<string, TraitSkills | null>();
 
   constructor(
     private root: string | null,
@@ -359,6 +430,16 @@ export class GameLookup {
 
   categories(): string[] {
     return Object.keys(CATEGORIES);
+  }
+
+  /** Skill modifiers of a trait from the game files; null if the trait isn't found. */
+  skillsOfTrait(key: string): TraitSkills | null {
+    const cached = this.traitSkills.get(key);
+    if (cached !== undefined) return cached;
+    const entry = this.get("trait", key);
+    const parsed = entry ? parseTraitSkills(entry.text) : null;
+    this.traitSkills.set(key, parsed);
+    return parsed;
   }
 
   private load(category: string): Map<string, Entry> {

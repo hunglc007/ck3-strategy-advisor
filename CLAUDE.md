@@ -19,7 +19,13 @@ lacks from `CK3_GAME_DIR` — currently the barony → province map from
 extractor helpers (ages, names, council seats, 1.20 vassal contracts) live in
 `extract/common.ts`.
 
-`gameLookup.ts` (`GameLookup`, used by `tools/gameLookup.ts`: `game_search`,
+`extract/skills.ts` (`effectiveSkills`) turns the save's base skills into
+base + trait bonuses using `cache.lookup.skillsOfTrait` (parsed from
+`common/traits` by `parseTraitSkills`, including XP-track tiers). `court` and
+`character` use it; keep new tools that show skills on it rather than the raw
+`skill` array.
+
+`gameLookup.ts` (`GameLookup`, shared as `cache.lookup`, used by `tools/gameLookup.ts`: `game_search`,
 `game_entry`) is a lazy per-category index over the game's own script files.
 `parseTopLevel` splits a `.txt` into top-level `key = { ... }` blocks (comments
 and quoted strings skipped when matching braces; `scalars: true` also keeps

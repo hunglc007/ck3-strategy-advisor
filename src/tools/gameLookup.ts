@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { SnapshotCache } from "../cache.js";
-import { CATEGORIES, GameLookup } from "../gameLookup.js";
+import { CATEGORIES } from "../gameLookup.js";
 
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 
@@ -24,7 +24,7 @@ const categoryList = () =>
 // Rules reference built from the player's own installed game files (exact
 // numbers for their patch), not from the web and not from the save.
 export function registerGameLookupTools(server: McpServer, cache: SnapshotCache) {
-  const lookup = new GameLookup(cache.game.root, cache.loc);
+  const lookup = cache.lookup;
 
   server.registerTool(
     "game_search",
