@@ -3,6 +3,7 @@ import type { Localizer } from "./localization.js";
 import { extractGamestate, IronmanError } from "./envelope.js";
 import { buildSnapshot, type Snapshot } from "./snapshot.js";
 import { queryGamestate, type Query } from "./parser.js";
+import { GameData } from "./gameData.js";
 
 export class SnapshotCache {
   private current: Snapshot | null = null;
@@ -14,7 +15,14 @@ export class SnapshotCache {
   constructor(
     private source: Source,
     readonly loc: Localizer,
+    readonly game: GameData = new GameData(null),
   ) {}
+
+  /** Display name for a province id: its barony's localized name, else "province N". */
+  provinceName(id: number): string {
+    const barony = this.game.provinceBarony.get(id);
+    return barony ? this.loc.resolve(barony) : `province ${id}`;
+  }
 
   async get(): Promise<Snapshot | { error: string }> {
     const ref = await this.source.latest();

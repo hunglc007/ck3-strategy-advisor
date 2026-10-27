@@ -18,7 +18,33 @@ export interface MilitaryInfo {
   strength: number | null;
   currentStrength: number | null;
   strengthWithoutHires: number | null;
+  menAtArms: MenAtArms[];
   wars: War[];
+}
+
+export interface MenAtArms {
+  type: string; // localized regiment type
+  size: number;
+  /** Province the regiment is stationed in (its `origin`), or null if unstationed. */
+  stationedProvince: number | null;
+}
+
+// Men-at-arms regiments are stored per owner in /armies/regiments as
+// { type, size, owner, origin? } (levy/garrison chunks there carry no `type`).
+function extractMenAtArms(q: Query, loc: Localizer, playerId: number): MenAtArms[] {
+  const regiments = (q.at("/armies/regiments") as Record<string, unknown> | undefined) ?? {};
+  const out: MenAtArms[] = [];
+  for (const raw of Object.values(regiments)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    if (r["owner"] !== playerId || typeof r["type"] !== "string") continue;
+    out.push({
+      type: loc.resolve(r["type"]),
+      size: num(r["size"]) ?? 0,
+      stationedProvince: num(r["origin"]),
+    });
+  }
+  return out;
 }
 
 function num(v: unknown): number | null {
@@ -55,5 +81,6 @@ export function extractMilitary(q: Query, loc: Localizer): MilitaryInfo {
     wars.push({ playerSide, cbType, targetTitle, attackerScore, defenderScore, startDate });
   });
 
-  return { levy, strength, currentStrength, strengthWithoutHires, wars };
+  const menAtArms = extractMenAtArms(q, loc, playerId);
+  return { levy, strength, currentStrength, strengthWithoutHires, menAtArms, wars };
 }

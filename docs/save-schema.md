@@ -238,6 +238,7 @@ These field mappings were verified through jomini against two real text saves: E
 ## ADDENDUM: gaps resolved for Tasks 10 & 13 (controller-verified)
 
 ### Men-at-arms (Task 10)
+_Superseded for 1.20 — see the 1.20 addendum at the end._
 There is NO clean per-character men-at-arms breakdown in the gamestate.
 `/living/{player}/landed_data/men_at_arms` = undefined; the raw `men_at_arms={ gold=... }`
 inside the player block is upkeep cost only. Regiments live in the global `/armies`
@@ -259,3 +260,28 @@ states MAA is not broken out. Do not fabricate an MAA breakdown.**
 - **Marriage candidates (Task 12):** NOT mapped in the gamestate — scope OUT; the plan hedges "if cheaply available".
 - **Strong vs weak claims (Task 14):** NOT stored. Report claims as pressed/unpressed only (from `alive_data/claim[*].pressed`), and say so in the tool description.
 - **Character name search (Task 9 find_character):** `first_name` is CK3 loc-encoded (e.g. "CrI_chA_n" for Críchán) and the game dir may be null, so display-name search is BEST-EFFORT substring over the raw + resolved name. Document this limitation in the tool description.
+
+---
+
+## ADDENDUM: CK3 1.20 (verified against a real 1.20.0.2 save)
+
+Corrections to the sections above:
+
+- **Vassal contracts** moved to `/vassal_contracts/database/{contractId}` (vacated slots are the string `none`). `/vassal_contracts/active` no longer exists. `extract/common.ts#vassalContract` tries `database` then `active`.
+- **Council:** `/living/{player}/landed_data/council` holds council *task* ids, not character ids. Resolve each through `/council_task_manager/active/{taskId}` → `{ type: "task_collect_taxes", owner: <charId>, court_owner: <player> }` (`extract/common.ts#councilSeats`).
+- **Prestige/piety:** `alive_data/prestige` = `{ currency, accumulated }` where `currency` is the spendable amount the UI shows; piety often has only `currency`. Read `currency` first.
+- **Men-at-arms ARE stored per owner:** `/armies/regiments/{id}` = `{ type: "light_footmen", size: 200, owner: <charId>, origin?: <provinceId> }`. Entries without `type` are levy/garrison chunks. `origin` is the province the regiment is stationed in (absent = unstationed).
+- **Title names:** current names live at `/landed_titles/landed_titles/{id}/title_name_data/name` (cultural names such as "Luimneach" for `b_limerick`); history entries there hold raw keys.
+- **CK3_GAME_DIR** may be the install root; localization lives under `<root>/game/localization`. `gameData.ts#resolveGameRoot` accepts both.
+- **Trait localization** is keyed `trait_<id>` in the game files (`trait_arrogant`), not the bare `traits_lookup` identifier.
+
+New sections used by the 1.20 tools:
+
+- **Important actions** (`alerts`, `expansion` CB targets): `/important_action_manager/active/{n}` = `{ important_action_type, character: <who it is for>, scope: { event_targets: { actor: {type:"char",identity}, recipient?: {type:"char"|"title",identity} } }, visible }`. Loc key = the type (`action_adult_ruler_not_married`), with `[concept|E]` and `@icon!` markup.
+- **Court positions:** `/court_positions/database/{n}` = `{ court_position: "court_physician_court_position", employee, employer, hire_date }`.
+- **Courtiers:** `/living/{id}/court_data/employer`. **Knights:** `/living/{player}/playable_data/knights`. **Legitimacy:** `/living/{player}/playable_data/legitimacy`.
+- **Family:** only parent→child links are stored (`family_data.child`, plus `spouse`, `primary_spouse`, `former_spouses`, `betrothed`). Parents must be found by inverting `child` across `/living` and `/dead_unprunable` (dead entries can come back from jomini as a duplicated `[obj, obj]` pair). Gender: top-level `female=yes`. Age: `birth` vs `/date`.
+- **Domain:** counties at `/county_manager/counties/{countyKey}` (keyed by key, e.g. `c_thomond`) = `{ development, county_control, culture, rite }`. Holdings at `/provinces/{provinceId}/holding` = `{ type, buildings: [{type}|{} empty slot], levy, garrison, income }` + `fort_level`. The barony→province id link is NOT in the save — read `b_xxx = { province = N }` from the game's `common/landed_titles/*.txt` (`gameData.ts`).
+- **Culture name:** `/culture_manager/cultures/{id}/name`.
+- **Secrets:** `/secrets/secrets/{id}` = `{ type, owner, target?: {type:"char",identity}, participants }`; `/secrets/known_secrets` = array of `{ secret: <id>, owner: <character who knows it> }`.
+- **Hooks:** in `/relations/active_relations` entries, `active_hook_0` is held by `first` over `second`, `active_hook_1` by `second` over `first`.

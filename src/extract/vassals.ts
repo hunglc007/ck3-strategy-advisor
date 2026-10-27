@@ -1,5 +1,6 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
+import { councilSeats, vassalContract } from "./common.js";
 
 export interface FactionInfo {
   type: string;
@@ -98,8 +99,8 @@ export function extractVassals(
   type VassalEntry = { id: number; strength: number };
   const entries: VassalEntry[] = [];
   for (const cid of contractIds) {
-    const contract = q.at(`/vassal_contracts/active/${cid}`) as Record<string, unknown> | undefined;
-    if (!contract || typeof contract !== "object") continue;
+    const contract = vassalContract(q, cid);
+    if (!contract) continue;
     const vassalId = contract["vassal"];
     if (typeof vassalId !== "number") continue;
 
@@ -121,8 +122,7 @@ export function extractVassals(
   const topIds = new Set(topEntries.map((e) => e.id));
 
   // 4. Council seat set
-  const council = (q.at(`/living/${playerId}/landed_data/council`) as number[] | undefined) ?? [];
-  const councilSet = new Set(council);
+  const councilSet = new Set(councilSeats(q, playerId).map((s) => s.memberId));
 
   // 5. Single pass over active_opinions — accumulate only for topN vassals targeting player
   const activeOpinions =

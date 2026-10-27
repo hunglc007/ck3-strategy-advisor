@@ -8,8 +8,16 @@ A local stdio **Model Context Protocol** server that reads the player's latest
 **Crusader Kings III** save and exposes their strategic situation to Claude as
 curated, read-only tools (`realm_overview`, `military`, `succession`,
 `diplomacy`, `vassals`, `titles`, `factions`, `expansion`, `find_character`,
-`character`, `foreign_realm`).
+`character`, `foreign_realm`, plus `alerts`, `court`, `family`, `domain`,
+`intrigue` in `tools/extended.ts`, which run a fresh `cache.query()` pass each
+call instead of reading the snapshot).
 It never modifies the save or the game. See `README.md` for install/config/usage.
+
+`gameData.ts` (`GameData`, held as `cache.game`) loads static data the save
+lacks from `CK3_GAME_DIR` — currently the barony → province map from
+`common/landed_titles`, used by `domain` and `cache.provinceName()`. Shared
+extractor helpers (ages, names, council seats, 1.20 vassal contracts) live in
+`extract/common.ts`.
 
 ## Commands
 

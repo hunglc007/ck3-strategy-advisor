@@ -23,7 +23,7 @@ describe("extractForeignRealm — matching & core", () => {
       name: "Causantin",
       martial: 7,
       gold: 88,
-      prestige: 500,
+      prestige: 200, // spendable `currency`, not lifetime `accumulated`
     });
     expect(r!.strength).toBe(6000);
     expect(r!.currentStrength).toBe(5500);

@@ -1,10 +1,15 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName } from "./titleUtils.js";
+import { charName, characterAge, num } from "./common.js";
 
 export interface CharacterInfo {
   id: number;
   name: string;
+  age: number | null;
+  female: boolean;
+  /** Name of the ruler whose court this character is in, if any. */
+  employer: string | null;
   skills: {
     diplomacy: number;
     martial: number;
@@ -54,9 +59,16 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
 
   // Financial/status data
   const gold = (q.at(`/living/${id}/alive_data/gold/value`) as number | undefined) ?? null;
+  // `currency` is the spendable amount (what the game shows); `accumulated` is lifetime.
   const prestige =
-    (q.at(`/living/${id}/alive_data/prestige/accumulated`) as number | undefined) ?? null;
-  const piety = (q.at(`/living/${id}/alive_data/piety/accumulated`) as number | undefined) ?? null;
+    num(q.at(`/living/${id}/alive_data/prestige/currency`)) ??
+    num(q.at(`/living/${id}/alive_data/prestige/accumulated`));
+  const piety =
+    num(q.at(`/living/${id}/alive_data/piety/currency`)) ??
+    num(q.at(`/living/${id}/alive_data/piety/accumulated`));
+  const age = characterAge(q, id);
+  const employerId = num(q.at(`/living/${id}/court_data/employer`));
+  const employer = employerId !== null ? charName(q, employerId) : null;
   const health = (q.at(`/living/${id}/alive_data/health`) as number | undefined) ?? null;
   const stress = (q.at(`/living/${id}/alive_data/stress`) as number | undefined) ?? null;
 
@@ -79,6 +91,9 @@ export function extractCharacter(q: Query, loc: Localizer, id: number): Characte
   return {
     id,
     name: String(firstName),
+    age,
+    female: q.at(`/living/${id}/female`) === true,
+    employer,
     skills,
     traits,
     gold,

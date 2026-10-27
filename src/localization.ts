@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { resolveGameRoot } from "./gameData.js";
 
 export class Localizer {
   private map = new Map<string, string>();
@@ -7,7 +8,8 @@ export class Localizer {
   private warned = false;
 
   constructor(gameDir: string | null) {
-    if (gameDir) this.loadDir(join(gameDir, "localization", "english"));
+    const root = resolveGameRoot(gameDir);
+    if (root) this.loadDir(join(root, "localization", "english"));
   }
 
   private loadDir(dir: string): void {
@@ -48,6 +50,10 @@ export class Localizer {
     this.traitLookup = lookup;
   }
 
+  has(key: string): boolean {
+    return this.map.has(key);
+  }
+
   resolve(key: string): string {
     const v = this.map.get(key);
     if (v !== undefined) return v;
@@ -60,8 +66,32 @@ export class Localizer {
     return key; // fallback
   }
 
+  /**
+   * Like `resolve`, but strips CK3 text markup so the value reads as plain text:
+   * `[married|E]` -> "married", `$OTHER_KEY$` -> its value (or dropped),
+   * `#P text#!` colour codes -> "text", `@icon!` inline icons and other
+   * `[script]` expressions dropped.
+   */
+  text(key: string): string {
+    const v = this.map.get(key);
+    if (v === undefined) return this.resolve(key);
+    return v
+      .replace(/\$([\w.]+)\$/g, (_, k: string) => this.map.get(k) ?? "")
+      .replace(/@[\w.]+!/g, "")
+      .replace(/\[([^\]|]+)\|[A-Za-z]+\]/g, "$1")
+      .replace(/\[[^\]]*\]/g, "")
+      .replace(/#[A-Za-z_]+ /g, "")
+      .replace(/#!/g, "")
+      .replace(/\\n/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
   resolveTrait(idx: number): string {
     const ident = this.traitLookup?.[idx];
-    return ident ? this.resolve(ident) : `trait_${idx}`;
+    if (!ident) return `trait_${idx}`;
+    // Game loc keys traits as "trait_<id>"; older fixtures key them bare.
+    const prefixed = `trait_${ident}`;
+    return this.map.has(prefixed) ? this.resolve(prefixed) : this.resolve(ident);
   }
 }

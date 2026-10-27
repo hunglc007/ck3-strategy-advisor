@@ -79,19 +79,24 @@ Or in **Claude Desktop**, add to `claude_desktop_config.json`:
 
 ## Tools
 
-| Tool             | What it returns                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `realm_overview` | Ruler, primary title & tier, house, gold/prestige/piety, date. Start here.            |
-| `military`       | Levy + total mobilised strength, and ongoing wars (side, casus belli, target, score). |
-| `succession`     | Heirs in order, succession & gender laws, rival claimants.                            |
-| `diplomacy`      | Alliances, truces, independence, and who most dislikes you.                           |
-| `vassals`        | Your most powerful vassals: power owed, opinion, council seat, faction danger flag.   |
-| `titles`         | Titles you personally hold, grouped by tier, each with its de jure liege.             |
-| `factions`       | Factions targeting you: type, strength vs. their threshold, members, leader.          |
-| `expansion`      | Stored claims (pressed/unpressed), unheld de jure titles, ongoing-war targets.        |
-| `find_character` | Search living characters by (partial) name → ids.                                     |
-| `character`      | Full dossier for one character id: traits, skills, wealth, claims.                    |
-| `foreign_realm`  | Look up any realm by name/key — ruler, army, allies, liege, active wars.              |
+| Tool             | What it returns                                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `realm_overview` | Ruler, age, title & tier, gold/income, prestige/piety, legitimacy, laws, limits. Start here. |
+| `alerts`         | The game's own "important actions" nudges (unmarried, CB available, unstationed MaA…).       |
+| `military`       | Levy + strength, your men-at-arms (type, size, station), ongoing wars.                       |
+| `succession`     | Heirs in order, succession & gender laws, rival claimants.                                   |
+| `diplomacy`      | Alliances, truces, independence, and who most dislikes you.                                  |
+| `vassals`        | Your most powerful vassals: power owed, opinion, council seat, faction danger flag.          |
+| `titles`         | Titles you personally hold, grouped by tier, each with its de jure liege.                    |
+| `factions`       | Factions targeting you: type, strength vs. their threshold, members, leader.                 |
+| `expansion`      | Claims, unheld de jure titles, your de jure land held by others, CB targets, wars.           |
+| `court`          | Council (task, skills, traits), court positions, knights, best courtier per skill.           |
+| `family`         | Parents, spouses, children, siblings; for you, heirs labelled by kinship.                    |
+| `domain`         | Your counties (development, control) and holdings (buildings, slots, levy, income).          |
+| `intrigue`       | Secrets you've discovered, your own secrets, hooks you hold / others hold on you.            |
+| `find_character` | Search living characters by (partial) name → ids.                                            |
+| `character`      | Full dossier for one character id: age, court, traits, skills, wealth, claims.               |
+| `foreign_realm`  | Look up any realm by name/key — ruler, army, allies, liege, active wars.                     |
 
 ## Known limitations (v1)
 
@@ -101,15 +106,18 @@ These reflect what is and isn't stored in the save:
   best-effort substring matching, so very stylized names may not match.
 - **Claims** are reported as pressed/unpressed — CK3 does not store a strong/weak
   distinction in the save.
-- **Men-at-arms** are not broken out per ruler in the save; `military` reports the
-  realm's mobilisation totals.
+- **Men-at-arms** are listed for the player's own regiments only (vassals'
+  hired regiments are not attributed).
+- **Marriage candidates** are not stored in the save; `alerts` only says who
+  can/should marry.
+- `domain` needs `CK3_GAME_DIR`: the barony → province link lives in the game's
+  `common/landed_titles`, not in the save.
 - **Opinion** values (e.g. in `diplomacy`/`vassals`) are approximate, summed from
   stored opinion modifiers rather than the game's computed total.
-- **Localization** is English-only, ignores `$KEY$` interpolation, and is
-  currently **unverified against a real CK3 install** (developed against a test
-  fixture). Real `.yml` quirks — a leading BOM, `§` colour codes and `#`
-  comments inside values, deeply nested subfolders — may not all be handled.
-  Without `CK3_GAME_DIR`, titles and traits appear as their raw game keys.
+- **Localization** is English-only (checked against a 1.20 install). Alert
+  labels have CK3 markup stripped, but other `$KEY$` interpolation is ignored.
+  `CK3_GAME_DIR` may be the install root or its `game` folder. Without it,
+  titles and traits appear as their raw game keys.
 - `expansion` lists **stored** levers (claims, unheld de jure titles, active-war
   CBs), not a full computed enumeration of every possible casus belli.
 

@@ -102,6 +102,8 @@ export function registerCharacterTools(server: McpServer, cache: SnapshotCache) 
 
       const body =
         `# ${c.name} (id ${c.id})\n` +
+        `- ${c.female ? "Female" : "Male"}, age ${c.age ?? "?"}` +
+        `${c.employer ? ` | At the court of ${c.employer}` : ""}\n` +
         `- Primary title: ${c.primaryTitle ?? "none"}\n` +
         `- Skills: ${skillLine}\n` +
         `- Traits: ${traitsLine}\n` +
