@@ -44,7 +44,7 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
     {
       title: "Marriage Candidates",
       description:
-        "Unmarried, same-faith, opposite-gender adults (16-45) outside your dynasty house, ranked by fertility, stewardship/diplomacy, how strong their home realm is as an ally and whether it is in your de jure region or your culture (distances are not in the save). Heritable good/bad traits and claims are shown. rank=priority orders by alliance strength first (counted only for a daughter or sister of the ruler, the usual condition for a marriage alliance); min_home_strength filters to strong allies. Not checked (not in the save): close kin beyond your house, existing betrothals, distance, personality fit, and whether they would accept. Same faith, not same rite.",
+        "Unmarried, same-faith, opposite-gender adults (16-45) outside your dynasty house, ranked by fertility, stewardship/diplomacy, how strong their home realm is as an ally and whether it is in your de jure region or your culture (distances are not in the save). Pass character_id to look for a spouse for someone else, e.g. your heir. Heritable good/bad traits and claims are shown. rank=priority orders by alliance strength first (counted only for a daughter or sister of the ruler, the usual condition for a marriage alliance); min_home_strength filters to strong allies. Not checked (not in the save): close kin beyond your house, existing betrothals, distance, personality fit, and whether they would accept. Same faith, not same rite.",
       inputSchema: {
         rank: z
           .enum(["local", "priority"])
@@ -59,6 +59,11 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
           .describe(
             "only candidates whose home realm army is at least this (e.g. 1500 for a real ally)",
           ),
+        character_id: z
+          .number()
+          .int()
+          .optional()
+          .describe("marry someone else off, e.g. your heir (default: the player character)"),
         limit: z.number().int().min(1).max(30).optional().describe("how many to list (default 12)"),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -67,10 +72,12 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
       limit,
       rank,
       min_home_strength,
+      character_id,
     }: {
       limit?: number;
       rank?: "local" | "priority";
       min_home_strength?: number;
+      character_id?: number;
     }) => {
       const snap = await cache.get();
       if ("error" in snap) return { isError: true, content: [{ type: "text", text: snap.error }] };
@@ -79,6 +86,7 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
         extractMarriageCandidates(q, cache.loc, year, limit ?? 12, {
           rank,
           minHomeStrength: min_home_strength,
+          forCharacter: character_id,
         }),
       );
       if (result !== null && typeof result === "object" && "error" in result)

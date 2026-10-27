@@ -54,3 +54,13 @@ test("an alliance only counts for a daughter or sister of the ruler, and priorit
   const strong = await run({ minHomeStrength: 1500 });
   expect(strong!.candidates.map((c) => c.name).sort()).toEqual(["Aelis", "Courtier"]);
 });
+
+test("character_id looks for a spouse for someone else, e.g. the heir", async () => {
+  const r = await queryGamestate(GS, (q) =>
+    extractMarriageCandidates(q, new Localizer(null), 1066, 12, { forCharacter: 6 }),
+  );
+  expect(r!.you).toEqual({ id: 6, name: "Man", age: 24 });
+  // The subject has no house here, so the player's housemate is no longer excluded.
+  expect(r!.candidates.map((c) => c.name)).toContain("SameHouse");
+  expect(r!.candidates.map((c) => c.name)).not.toContain("Man");
+});

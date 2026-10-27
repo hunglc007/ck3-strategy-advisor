@@ -75,11 +75,13 @@ export function extractMarriageCandidates(
   loc: Localizer,
   nowYear: number,
   limit = 12,
-  opts: { rank?: MarriageRank; minHomeStrength?: number } = {},
+  opts: { rank?: MarriageRank; minHomeStrength?: number; forCharacter?: number } = {},
 ): MarriageInfo | null {
   loc.setTraitLookup((q.at("/traits_lookup") as string[]) ?? null);
   const playerId = q.at("/played_character/character") as number;
-  const me = q.at(`/living/${playerId}`) as Record<string, unknown> | undefined;
+  // The person being married: the player by default, or e.g. the heir.
+  const subjectId = opts.forCharacter ?? playerId;
+  const me = q.at(`/living/${subjectId}`) as Record<string, unknown> | undefined;
   if (!me) return null;
   const myFemale = me["female"] === true || me["female"] === "yes";
   const birth = me["birth"];
@@ -145,7 +147,7 @@ export function extractMarriageCandidates(
     for (const [idStr, c] of Object.entries(living)) {
       if (!c || typeof c !== "object") continue;
       const id = Number(idStr);
-      if (id === playerId) continue;
+      if (id === subjectId || id === playerId) continue;
       const female = c["female"] === true || c["female"] === "yes";
       if (female === myFemale) continue;
       const b = c["birth"];
@@ -243,8 +245,8 @@ export function extractMarriageCandidates(
   else found.sort((a, b) => local(b) - local(a) || b.score - a.score);
   return {
     you: {
-      id: playerId,
-      name: String(me["first_name"] ?? playerId),
+      id: subjectId,
+      name: String(me["first_name"] ?? subjectId),
       age: myAge,
     },
     faithMatched,
