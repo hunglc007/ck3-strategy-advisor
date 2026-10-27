@@ -98,7 +98,9 @@ export function extractVassals(
   type VassalEntry = { id: number; strength: number };
   const entries: VassalEntry[] = [];
   for (const cid of contractIds) {
-    const contract = q.at(`/vassal_contracts/active/${cid}`) as Record<string, unknown> | undefined;
+    // Save format 17 keeps contracts under `database`; older/mini fixtures use `active`.
+    const contract = (q.at(`/vassal_contracts/database/${cid}`) ??
+      q.at(`/vassal_contracts/active/${cid}`)) as Record<string, unknown> | undefined;
     if (!contract || typeof contract !== "object") continue;
     const vassalId = contract["vassal"];
     if (typeof vassalId !== "number") continue;

@@ -74,6 +74,7 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
       q,
       loc,
       rawDate instanceof Date ? rawDate.getUTCFullYear() : null,
+      memberIds,
     );
     return {
       date,
