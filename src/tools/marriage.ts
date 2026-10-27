@@ -13,14 +13,15 @@ function line(c: MarriageCandidate): string {
           c.home.strength !== null ? `, army ${Math.round(c.home.strength)}` : ""
         })`
       : "no court (available in the pool)";
-  const alliance =
-    c.kinOfRuler === "daughter" || c.kinOfRuler === "sister"
-      ? ` | close kin of the ruler (${c.kinOfRuler}): alliance plausible`
-      : c.kinOfRuler === "self"
-        ? " | is a ruler"
-        : c.home
-          ? " | courtier only: marriage alliance unlikely"
-          : "";
+  // Game rule: a marriage can unlock an alliance when the spouse is a ruler or has a ruler among
+  // their close family (parents, siblings, children).
+  const alliance = c.allyRuler
+    ? c.allyRuler.relation === "self"
+      ? ` | is a ruler (army ${Math.round(c.allyRuler.strength)}): alliance plausible`
+      : ` | ${c.allyRuler.relation} ${c.allyRuler.name} rules (army ${Math.round(c.allyRuler.strength)}): alliance plausible`
+    : c.home
+      ? " | no ruler in close family: marriage alliance unlikely"
+      : "";
   return (
     `- ${c.name} (${c.id}, age ${c.age}${[
       c.nearby ? "same region" : "",
@@ -28,7 +29,7 @@ function line(c: MarriageCandidate): string {
     ]
       .filter(Boolean)
       .map((x) => `, ${x}`)
-      .join("")}): ` +
+      .join("")}${c.distance !== null ? `, dist ${Math.round(c.distance)}` : ""}): ` +
     `fertility ${c.fertility !== null ? c.fertility.toFixed(2) : "?"} | ` +
     `DIP ${s.diplomacy} STE ${s.stewardship} INT ${s.intrigue} LEA ${s.learning} | ${home}${alliance}` +
     (c.traits.length ? `\n  traits: ${c.traits.join(", ")}` : "") +
@@ -44,7 +45,7 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
     {
       title: "Marriage Candidates",
       description:
-        "Unmarried, same-faith, opposite-gender adults (16-45) outside your dynasty house, ranked by fertility, stewardship/diplomacy, how strong their home realm is as an ally and whether it is in your de jure region or your culture (distances are not in the save). Pass character_id to look for a spouse for someone else, e.g. your heir. Heritable good/bad traits and claims are shown. rank=priority orders by alliance strength first (counted only for a daughter or sister of the ruler, the usual condition for a marriage alliance); min_home_strength filters to strong allies. Not checked (not in the save): close kin beyond your house, existing betrothals, distance, personality fit, and whether they would accept. Same faith, not same rite.",
+        "Unmarried, same-faith, opposite-gender adults (16-45) outside your dynasty house, ranked by fertility, stewardship/diplomacy, how strong their home realm is as an ally and whether it is in your de jure region or your culture (distances are not in the save). Pass character_id to look for a spouse for someone else, e.g. your heir. The in-game marriage list only shows people within reach, so pass regions (empire or kingdom title keys such as e_britannia, e_scandinavia, k_france) to match it. Heritable good/bad traits and claims are shown. rank=priority orders by alliance strength first (counted only for a daughter or sister of the ruler, the usual condition for a marriage alliance); min_home_strength filters to strong allies. Not checked (not in the save): close kin beyond your house, existing betrothals, distance, personality fit, and whether they would accept. Same faith, not same rite.",
       inputSchema: {
         rank: z
           .enum(["local", "priority"])
@@ -58,6 +59,19 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
           .optional()
           .describe(
             "only candidates whose home realm army is at least this (e.g. 1500 for a real ally)",
+          ),
+        max_distance: z
+          .number()
+          .min(0)
+          .optional()
+          .describe(
+            "only people within this map distance of your location. Default 1130 map units, calibrated to the game MAXIMUM_DIPLOMATIC_RANGE of 1000 and to the ~480 candidates a Munster ruler sees; raise it to widen",
+          ),
+        regions: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "only people currently located in these empires or kingdoms, as title keys (e.g. e_britannia, e_scandinavia, k_france); the in-game list is limited by distance, so use this to match it",
           ),
         character_id: z
           .number()
@@ -73,11 +87,15 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
       rank,
       min_home_strength,
       character_id,
+      regions,
+      max_distance,
     }: {
       limit?: number;
       rank?: "local" | "priority";
       min_home_strength?: number;
       character_id?: number;
+      regions?: string[];
+      max_distance?: number;
     }) => {
       const snap = await cache.get();
       if ("error" in snap) return { isError: true, content: [{ type: "text", text: snap.error }] };
@@ -87,6 +105,8 @@ export function registerMarriageTool(server: McpServer, cache: SnapshotCache) {
           rank,
           minHomeStrength: min_home_strength,
           forCharacter: character_id,
+          regions,
+          maxDistance: max_distance,
         }),
       );
       if (result !== null && typeof result === "object" && "error" in result)

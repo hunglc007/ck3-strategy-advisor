@@ -64,3 +64,30 @@ test("character_id looks for a spouse for someone else, e.g. the heir", async ()
   expect(r!.candidates.map((c) => c.name)).toContain("SameHouse");
   expect(r!.candidates.map((c) => c.name)).not.toContain("Man");
 });
+
+test("a spouse with a ruling sibling or parent can unlock an alliance, a plain courtier cannot", async () => {
+  const gs = Buffer.from(`
+traits_lookup={ "just" }
+played_character={ character=1 player=1 }
+rites={ database={ 1={ faith=13 } } }
+living={
+1={ first_name="Murchad" birth=1027.1.1 culture=75 rite=1 landed_data={ domain={ 11 } } }
+2={ first_name="Sister" birth=1042.1.1 female=yes culture=12 rite=1 court_data={ employer=3 } }
+3={ first_name="Brother" birth=1035.1.1 rite=1 landed_data={ domain={ 12 } strength=3000 } }
+4={ first_name="Plain" birth=1042.1.1 female=yes culture=12 rite=1 court_data={ employer=3 } }
+5={ first_name="Dad" birth=1010.1.1 family_data={ child={ 2 3 } } }
+}
+`);
+  const r = await queryGamestate(gs, (q) =>
+    extractMarriageCandidates(q, new Localizer(null), 1066, 12, { rank: "priority" }),
+  );
+  const by = Object.fromEntries(r!.candidates.map((c) => [c.name, c]));
+  expect(by["Sister"]!.allyRuler).toEqual({
+    id: 3,
+    name: "Brother",
+    strength: 3000,
+    relation: "sibling",
+  });
+  expect(by["Plain"]!.allyRuler).toBeNull();
+  expect(r!.candidates[0]!.name).toBe("Sister");
+});

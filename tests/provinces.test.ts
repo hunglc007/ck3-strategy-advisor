@@ -36,3 +36,16 @@ test("maps each barony's province to its county, duchy, kingdom and empire", () 
     empire: null,
   });
 });
+
+import { parseProvincePositions, provinceDistance } from "../src/provinces.js";
+
+test("reads province positions and measures distance between two provinces", () => {
+  const m = parseProvincePositions(`
+    instances={
+      { id=1 position={ 0.0 0.0 0.0 } rotation={ 0 0 0 1 } }
+      { id=2 position={ 300.0 5.0 400.0 } rotation={ 0 0 0 1 } }
+    }`);
+  expect(m.get(2)).toEqual([300, 400]);
+  expect(provinceDistance(m, 1, 2)).toBe(500);
+  expect(provinceDistance(m, 1, 99)).toBeNull();
+});

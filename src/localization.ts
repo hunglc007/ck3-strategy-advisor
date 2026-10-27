@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadTraitSkills, type TraitSkillData } from "./traitSkills.js";
-import { loadProvinceRegions, type ProvinceRegion } from "./provinces.js";
+import {
+  loadProvincePositions,
+  loadProvinceRegions,
+  provinceDistance,
+  type ProvinceRegion,
+} from "./provinces.js";
 
 export class Localizer {
   private map = new Map<string, string>();
@@ -9,6 +14,7 @@ export class Localizer {
   private warned = false;
   private traitSkills = new Map<string, TraitSkillData>();
   private provinces: Map<number, ProvinceRegion> | null = null;
+  private positions: Map<number, [number, number]> | null = null;
 
   constructor(private gameDir: string | null) {
     if (gameDir) {
@@ -31,6 +37,12 @@ export class Localizer {
   provinceRegion(id: number): ProvinceRegion | undefined {
     this.provinces ??= loadProvinceRegions(this.gameDir);
     return this.provinces.get(id);
+  }
+
+  /** Map distance between two provinces (null when unknown or no game files). */
+  distance(a: number, b: number): number | null {
+    this.positions ??= loadProvincePositions(this.gameDir);
+    return provinceDistance(this.positions, a, b);
   }
 
   private loadDir(dir: string): void {

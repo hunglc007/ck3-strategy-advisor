@@ -3,6 +3,14 @@ import type { Localizer } from "../localization.js";
 import { resolveTitleName } from "./titleUtils.js";
 import { effectiveSkills, type Skills } from "./skills.js";
 
+export interface AllyRuler {
+  id: number;
+  name: string;
+  /** Army strength of that ruler. */
+  strength: number;
+  relation: "self" | "parent" | "sibling" | "child";
+}
+
 export interface MarriageCandidate {
   id: number;
   name: string;
@@ -27,6 +35,10 @@ export interface MarriageCandidate {
    * alliance. "self" when the candidate is the ruler; null for a mere courtier or unknown.
    */
   kinOfRuler: "daughter" | "sister" | "self" | null;
+  /** Strongest ruler among their close family (parents, siblings, children) or themselves. */
+  allyRuler: AllyRuler | null;
+  /** Map distance from the player's location, when known. */
+  distance: number | null;
   /** Your own court member. */
   inYourCourt: boolean;
   /** Default blend: local first, then fertility/skills/ally strength/genes. */
@@ -47,6 +59,8 @@ const GOOD_GENES = /^((beauty|intellect|physique)_good_d|fecund|pure_blooded)$/;
 const BAD_GENES =
   /^((beauty|intellect|physique)_bad_d|inbred|bleeder|clubfooted|hunchbacked|lisping|stuttering|weak|dull|spindly|scaly|albino|wheezing|infertile)$/;
 
+/** The game only lists people within diplomatic range (capped at 1000 game units); 1130 map units reproduces the ~480 candidates seen around Munster. */
+const DEFAULT_RANGE = 1130;
 const MIN_AGE = 16;
 const MAX_AGE = 45;
 
@@ -75,10 +89,24 @@ export function extractMarriageCandidates(
   loc: Localizer,
   nowYear: number,
   limit = 12,
-  opts: { rank?: MarriageRank; minHomeStrength?: number; forCharacter?: number } = {},
+  opts: {
+    rank?: MarriageRank;
+    minHomeStrength?: number;
+    forCharacter?: number;
+    /** Only people currently located in these empires/kingdoms (title keys, e.g. e_britannia, k_france). */
+    regions?: string[];
+    /**
+     * Only people within this map distance of the player's location. The default roughly matches
+     * the in-game marriage list (calibrated so a Munster ruler sees about 450 candidates).
+     */
+    maxDistance?: number;
+  } = {},
 ): MarriageInfo | null {
   loc.setTraitLookup((q.at("/traits_lookup") as string[]) ?? null);
   const playerId = q.at("/played_character/character") as number;
+  const myProvince = ((q.at(`/living/${playerId}/alive_data/location`) as
+    | Record<string, unknown>
+    | undefined) ?? {})["location"] as number | undefined;
   // The person being married: the player by default, or e.g. the heir.
   const subjectId = opts.forCharacter ?? playerId;
   const me = q.at(`/living/${subjectId}`) as Record<string, unknown> | undefined;
@@ -100,11 +128,16 @@ export function extractMarriageCandidates(
   const living = q.at("/living") as Record<string, Record<string, unknown>> | undefined;
   // child -> parents, from living and dead characters, to recognise a ruler's daughters and sisters.
   const parentsOf = new Map<number, number[]>();
+  const childrenOf = new Map<number, number[]>();
   const addFamilies = (src: unknown) => {
     if (!src || typeof src !== "object") return;
     for (const [pid, ch] of Object.entries(src as Record<string, Record<string, unknown>>)) {
       const kids = (ch?.["family_data"] as Record<string, unknown> | undefined)?.["child"];
       if (!Array.isArray(kids)) continue;
+      childrenOf.set(
+        Number(pid),
+        kids.filter((k): k is number => typeof k === "number"),
+      );
       for (const k of kids) {
         if (typeof k !== "number") continue;
         const arr = parentsOf.get(k);
@@ -122,6 +155,42 @@ export function extractMarriageCandidates(
     if (mine.includes(rulerId)) return "daughter";
     const theirs = parentsOf.get(rulerId) ?? [];
     return mine.some((p) => theirs.includes(p)) ? "sister" : null;
+  };
+
+  /**
+   * The game's rule for a marriage alliance (marriage_between_characters_unlocks_alliance): the
+   * spouse is a ruler, or has a ruler among their close family. Close family here is parents,
+   * children and siblings. Returns the strongest such ruler.
+   */
+  const strengthOf = (id: number): number | null => num(q.at(`/living/${id}/landed_data/strength`));
+  const allyRulerOf = (id: number, own: Record<string, unknown>): AllyRuler | null => {
+    const kin = new Set<number>([id]);
+    const parents = parentsOf.get(id) ?? [];
+    for (const p of parents) {
+      kin.add(p);
+      for (const s of childrenOf.get(p) ?? []) kin.add(s);
+    }
+    for (const ch of childrenOf.get(id) ?? []) kin.add(ch);
+    void own;
+    let best: AllyRuler | null = null;
+    for (const k of kin) {
+      const s = strengthOf(k);
+      if (s === null || (best !== null && s <= best.strength)) continue;
+      best = {
+        id: k,
+        name: String(q.at(`/living/${k}/first_name`) ?? k),
+        strength: s,
+        relation:
+          k === id
+            ? "self"
+            : parents.includes(k)
+              ? "parent"
+              : (childrenOf.get(id) ?? []).includes(k)
+                ? "child"
+                : "sibling",
+      };
+    }
+    return best;
   };
 
   const found: MarriageCandidate[] = [];
@@ -148,6 +217,28 @@ export function extractMarriageCandidates(
       if (!c || typeof c !== "object") continue;
       const id = Number(idStr);
       if (id === subjectId || id === playerId) continue;
+      const cProv = (
+        (c["alive_data"] as Record<string, unknown> | undefined)?.["location"] as
+          | Record<string, unknown>
+          | undefined
+      )?.["location"];
+      const distance =
+        myProvince !== undefined && typeof cProv === "number"
+          ? loc.distance(myProvince, cProv)
+          : null;
+      if (distance !== null && distance > (opts.maxDistance ?? DEFAULT_RANGE)) continue;
+      if (opts.regions?.length) {
+        const p = (c["alive_data"] as Record<string, unknown> | undefined)?.["location"] as
+          | Record<string, unknown>
+          | undefined;
+        const r =
+          typeof p?.["location"] === "number" ? loc.provinceRegion(p["location"]) : undefined;
+        if (
+          !r ||
+          !(opts.regions.includes(r.empire ?? "") || opts.regions.includes(r.kingdom ?? ""))
+        )
+          continue;
+      }
       const female = c["female"] === true || c["female"] === "yes";
       if (female === myFemale) continue;
       const b = c["birth"];
@@ -206,7 +297,8 @@ export function extractMarriageCandidates(
         Math.max(0, age - 35) * 0.5;
 
       const kinOfRuler = kinOf(id, homeId);
-      const allyStrength = kinOfRuler !== null ? (realm?.strength ?? 0) : 0;
+      const allyRuler = allyRulerOf(id, c);
+      const allyStrength = allyRuler?.strength ?? 0;
       const tier =
         allyStrength >= 3000 ? 3 : allyStrength >= 1500 ? 2 : allyStrength >= 800 ? 1 : 0;
       const priorityScore =
@@ -232,6 +324,8 @@ export function extractMarriageCandidates(
         nearby,
         sameCulture,
         kinOfRuler,
+        allyRuler,
+        distance,
         inYourCourt: employer === playerId,
         score,
         priorityScore,

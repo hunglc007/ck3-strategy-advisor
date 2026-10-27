@@ -71,3 +71,35 @@ export function loadProvinceRegions(gameDir: string | null): Map<number, Provinc
   }
   return out;
 }
+
+/** Province id -> [x, z] world position, parsed from `building_locators.txt` text. */
+export function parseProvincePositions(text: string): Map<number, [number, number]> {
+  const out = new Map<number, [number, number]>();
+  for (const m of text.matchAll(/id=(\d+)\s*position=\{\s*([-\d.]+)\s+[-\d.]+\s+([-\d.]+)/g)) {
+    const id = Number(m[1]);
+    if (!out.has(id)) out.set(id, [Number(m[2]), Number(m[3])]);
+  }
+  return out;
+}
+
+export function loadProvincePositions(gameDir: string | null): Map<number, [number, number]> {
+  if (!gameDir) return new Map();
+  try {
+    return parseProvincePositions(
+      readFileSync(join(gameDir, "gfx", "map", "map_object_data", "building_locators.txt"), "utf8"),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+/** Straight-line distance between two provinces in map units, or null if either is unknown. */
+export function provinceDistance(
+  positions: Map<number, [number, number]>,
+  a: number,
+  b: number,
+): number | null {
+  const pa = positions.get(a);
+  const pb = positions.get(b);
+  return pa && pb ? Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) : null;
+}
