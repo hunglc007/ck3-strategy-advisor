@@ -247,7 +247,15 @@ export function extractMarriageCandidates(
       const age = nowYear - b.getUTCFullYear();
       if (age < MIN_AGE || age > MAX_AGE) continue;
       const fam = c["family_data"] as Record<string, unknown> | undefined;
-      if (fam && (fam["spouse"] !== undefined || fam["primary_spouse"] !== undefined)) continue;
+      // The game's marriage list drops anyone who can't take another spouse (allowed_more_spouses):
+      // married, or already betrothed (family_data.betrothed).
+      if (
+        fam &&
+        (fam["spouse"] !== undefined ||
+          fam["primary_spouse"] !== undefined ||
+          fam["betrothed"] !== undefined)
+      )
+        continue;
       if (c["sexuality"] === "homosexual" || c["sexuality"] === "asexual") continue;
       if (myFaith === undefined || faithOf(c["rite"]) !== myFaith) continue;
       faithMatched++;

@@ -91,3 +91,20 @@ living={
   expect(by["Plain"]!.allyRuler).toBeNull();
   expect(r!.candidates[0]!.name).toBe("Sister");
 });
+
+test("people who are already betrothed are not listed, as in the game", async () => {
+  const gs = Buffer.from(`
+traits_lookup={ "just" }
+played_character={ character=1 player=1 }
+rites={ database={ 1={ faith=13 } } }
+living={
+1={ first_name="Murchad" birth=1027.1.1 culture=75 rite=1 landed_data={ domain={ 11 } } }
+2={ first_name="Free" birth=1042.1.1 female=yes rite=1 }
+3={ first_name="Engaged" birth=1042.1.1 female=yes rite=1 family_data={ betrothed=9 } }
+}
+`);
+  const r = await queryGamestate(gs, (q) =>
+    extractMarriageCandidates(q, new Localizer(null), 1066),
+  );
+  expect(r!.candidates.map((c) => c.name)).toEqual(["Free"]);
+});
