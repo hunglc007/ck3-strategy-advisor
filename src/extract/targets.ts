@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullName } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName, titleTierFromKey } from "./titleUtils.js";
 import { collectAllies, collectWars } from "./foreignRealm.js";
@@ -38,7 +39,7 @@ function num(v: unknown): number | null {
 }
 
 function name(q: Query, loc: Localizer, id: number): string {
-  return loc.charName(q.at(`/living/${id}/first_name`) ?? "unknown");
+  return fullName(q, loc, id);
 }
 
 /** Climb de_jure_liege from `id` until a kingdom/empire title; the start itself counts. */

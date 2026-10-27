@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullNameOf } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { effectiveSkills, type Skills } from "./skills.js";
 import { MILD_TRAITS, SEVERE_TRAITS } from "./council.js";
@@ -100,7 +101,7 @@ export function extractPool(
     else if (keys.some((k) => MILD_TRAITS.test(k))) flags.push("unreliable trait");
     characters.push({
       id: Number(idStr),
-      name: loc.charName(c["first_name"] ?? idStr),
+      name: fullNameOf(q, loc, c, idStr),
       age,
       female: c["female"] === true || c["female"] === "yes",
       skills: effectiveSkills(

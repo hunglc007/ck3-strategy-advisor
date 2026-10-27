@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullName } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName, titleTierFromKey, type TitleTier } from "./titleUtils.js";
 import { extractCharacter } from "./characters.js";
@@ -51,7 +52,7 @@ function tierRank(t: TitleTier): number {
 }
 
 function charName(q: Query, loc: Localizer, id: number): string {
-  return loc.charName(q.at(`/living/${id}/first_name`) ?? "unknown");
+  return fullName(q, loc, id);
 }
 
 // Best-match title id for a free-text realm name or key.

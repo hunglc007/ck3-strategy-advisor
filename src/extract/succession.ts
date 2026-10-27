@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullName } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName } from "./titleUtils.js";
 
@@ -21,7 +22,7 @@ const HEIR_CAP = 6;
 const CLAIMANT_CAP = 6;
 
 function resolveCharName(q: Query, loc: Localizer, id: number): string {
-  return loc.charName(q.at(`/living/${id}/first_name`) ?? "unknown");
+  return fullName(q, loc, id);
 }
 
 export function extractSuccession(q: Query, loc: Localizer): SuccessionInfo {

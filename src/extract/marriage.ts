@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullName, fullNameOf } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { resolveTitleName } from "./titleUtils.js";
 import { effectiveSkills, type Skills } from "./skills.js";
@@ -178,7 +179,7 @@ export function extractMarriageCandidates(
       if (s === null || (best !== null && s <= best.strength)) continue;
       best = {
         id: k,
-        name: loc.charName(q.at(`/living/${k}/first_name`) ?? k),
+        name: fullName(q, loc, k),
         strength: s,
         relation:
           k === id
@@ -203,7 +204,7 @@ export function extractMarriageCandidates(
         const dom = (q.at(`/living/${rulerId}/landed_data/domain`) as number[] | undefined) ?? [];
         r = {
           id: rulerId,
-          name: loc.charName(q.at(`/living/${rulerId}/first_name`) ?? "unknown"),
+          name: fullName(q, loc, rulerId),
           realm: dom[0] !== undefined ? resolveTitleName(q, loc, dom[0]) : null,
           strength: num(q.at(`/living/${rulerId}/landed_data/strength`)),
           nearby: myKingdom !== undefined && kingdomOf(q, dom[0]) === myKingdom,
@@ -310,7 +311,7 @@ export function extractMarriageCandidates(
 
       found.push({
         id,
-        name: loc.charName(c["first_name"] ?? id),
+        name: fullNameOf(q, loc, c, id),
         age,
         skills,
         traits: traitIdx.map((i) => loc.resolveTrait(i)),
@@ -340,7 +341,7 @@ export function extractMarriageCandidates(
   return {
     you: {
       id: subjectId,
-      name: loc.charName(me["first_name"] ?? subjectId),
+      name: fullNameOf(q, loc, me, subjectId),
       age: myAge,
     },
     faithMatched,

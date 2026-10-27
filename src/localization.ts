@@ -33,6 +33,11 @@ export class Localizer {
    * (e.g. RO_gnvaldr) and the game shows the localized text (Rögnvaldr).
    */
   charName(raw: unknown): string {
+    return this.text(raw);
+  }
+
+  /** Localized text for a key, or the key itself when the game has no entry for it. */
+  text(raw: unknown): string {
     const key = typeof raw === "string" ? raw : String(raw ?? "");
     return this.map.get(key) ?? key;
   }

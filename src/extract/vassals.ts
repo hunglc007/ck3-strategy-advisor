@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullName } from "./names.js";
 import type { Localizer } from "../localization.js";
 
 export interface FactionInfo {
@@ -64,7 +65,7 @@ export function extractFactions(
     let leaderName: string | null = null;
     if (typeof leaderId === "number") {
       const raw = q.at(`/living/${leaderId}/first_name`);
-      leaderName = typeof raw === "string" ? loc.charName(raw) : null;
+      leaderName = typeof raw === "string" ? fullName(q, loc, leaderId) : null;
     }
 
     factions.push({
@@ -144,7 +145,7 @@ export function extractVassals(
   // 6. Build final vassal list
   const vassals = topEntries.map(({ id, strength }) => {
     const raw = q.at(`/living/${id}/first_name`);
-    const name = loc.charName(typeof raw === "string" ? raw : String(raw ?? id));
+    const name = typeof raw === "string" ? fullName(q, loc, id) : String(raw ?? id);
     return {
       id,
       name,

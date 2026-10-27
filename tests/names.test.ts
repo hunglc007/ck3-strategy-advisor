@@ -61,3 +61,25 @@ test("trait names come from trait_<key>, falling back to the bare key", () => {
   expect(loc.resolveTrait(1)).toBe("Brave");
   expect(loc.resolveTrait(2)).toBe("unknown_trait");
 });
+
+import { queryGamestate } from "../src/parser.js";
+import { fullName } from "../src/extract/names.js";
+
+test("full name is first name plus house prefix and name, as the game shows it", async () => {
+  const root = mkdtempSync(join(tmpdir(), "ck3-house-"));
+  mkdirSync(join(root, "localization", "english"), { recursive: true });
+  writeFileSync(
+    join(root, "localization", "english", "h_l_english.yml"),
+    'l_english:\n dynnp_d_:0 "d\'"\n dynn_Ivrea:0 "Ivrea"\n',
+  );
+  const gs = Buffer.from(`
+dynasties={ dynasty_house={ 7={ name="dynn_Ivrea" prefix="dynnp_d_" } } }
+living={
+1={ first_name="Sybille" dynasty_house=7 }
+2={ first_name="Pool" }
+}
+`);
+  const loc = new Localizer(root);
+  const names = await queryGamestate(gs, (q) => [fullName(q, loc, 1), fullName(q, loc, 2)]);
+  expect(names).toEqual(["Sybille d'Ivrea", "Pool"]);
+});

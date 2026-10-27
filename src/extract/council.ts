@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullNameOf } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { effectiveSkills } from "./skills.js";
 
@@ -184,7 +185,7 @@ export function extractCouncil(
     const court = c["court_data"] as Record<string, unknown> | undefined;
     return {
       id,
-      name: loc.charName(c["first_name"] ?? id),
+      name: fullNameOf(q, loc, c, id),
       age: birthYear !== null && nowYear !== null ? nowYear - birthYear : null,
       skills,
       traits: traitIdx.map((i) => loc.resolveTrait(i)),

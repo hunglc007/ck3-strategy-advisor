@@ -1,4 +1,5 @@
 import type { Query } from "../parser.js";
+import { fullName } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { formatCk3Date } from "../format.js";
 import { forEachRelation } from "./scan.js";
@@ -28,7 +29,7 @@ export interface DiplomacyInfo {
 const HOSTILE_CAP = 5;
 
 function resolveCharName(q: Query, loc: Localizer, id: number): string {
-  return loc.charName(q.at(`/living/${id}/first_name`) ?? "unknown");
+  return fullName(q, loc, id);
 }
 
 export function extractDiplomacy(q: Query, loc: Localizer): DiplomacyInfo {
