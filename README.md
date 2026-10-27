@@ -94,6 +94,8 @@ Or in **Claude Desktop**, add to `claude_desktop_config.json`:
 | `family`         | Parents, spouses, children, siblings; for you, heirs labelled by kinship.                    |
 | `domain`         | Your counties (development, control) and holdings (buildings, slots, levy, income).          |
 | `intrigue`       | Secrets you've discovered, your own secrets, hooks you hold / others hold on you.            |
+| `game_search`    | Search the installed game's rules data (men-at-arms, CBs, buildings, traits, decisions…).    |
+| `game_entry`     | One entry's name, description, source file and raw script (numbers, conditions, effects).    |
 | `find_character` | Search living characters by (partial) name → ids.                                            |
 | `character`      | Full dossier for one character id: age, court, traits, skills, wealth, claims.               |
 | `foreign_realm`  | Look up any realm by name/key — ruler, army, allies, liege, active wars.                     |
@@ -102,6 +104,17 @@ Or in **Claude Desktop**, add to `claude_desktop_config.json`:
 
 These reflect what is and isn't stored in the save:
 
+- **`game_search` / `game_entry`** read the game's own script and localization
+  files under `CK3_GAME_DIR` (so they match your installed patch; mods are not
+  merged in). They return raw script, not a computed tooltip: values that
+  depend on your culture, techs or perks must be read from the conditions.
+  Costs written as `@constants` are filled in; named values are in the
+  `script_value` category. Categories: men_at_arms, casus_belli, building, trait,
+  decision, tradition, innovation, pillar, culture, law, government, council_task,
+  court_position, perk, focus, interaction, doctrine, tenet, faith, dynasty_legacy,
+  faction, secret, artifact, holding, activity, script_value, scripted_effect,
+  scripted_trigger, event. Events are only searched when `category: event` is
+  given.
 - **Names** are stored in CK3's encoded form; `find_character` normalizes and does
   best-effort substring matching, so very stylized names may not match.
 - **Claims** are reported as pressed/unpressed — CK3 does not store a strong/weak

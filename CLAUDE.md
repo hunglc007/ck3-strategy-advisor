@@ -19,6 +19,15 @@ lacks from `CK3_GAME_DIR` — currently the barony → province map from
 extractor helpers (ages, names, council seats, 1.20 vassal contracts) live in
 `extract/common.ts`.
 
+`gameLookup.ts` (`GameLookup`, used by `tools/gameLookup.ts`: `game_search`,
+`game_entry`) is a lazy per-category index over the game's own script files.
+`parseTopLevel` splits a `.txt` into top-level `key = { ... }` blocks (comments
+and quoted strings skipped when matching braces; `scalars: true` also keeps
+`key = value`, used for `script_value`). `CATEGORIES` maps each category to its
+folders and localization key patterns (most specific first). Later files
+override earlier ones for the same key. It reads game files only, never the
+save, so those tools are not stamped with a snapshot.
+
 ## Commands
 
 ```bash

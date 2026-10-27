@@ -75,16 +75,21 @@ export class Localizer {
   text(key: string): string {
     const v = this.map.get(key);
     if (v === undefined) return this.resolve(key);
-    return v
-      .replace(/\$([\w.]+)\$/g, (_, k: string) => this.map.get(k) ?? "")
-      .replace(/@[\w.]+!/g, "")
-      .replace(/\[([^\]|]+)\|[A-Za-z]+\]/g, "$1")
-      .replace(/\[[^\]]*\]/g, "")
-      .replace(/#[A-Za-z_]+ /g, "")
-      .replace(/#!/g, "")
-      .replace(/\\n/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
+    return (
+      v
+        .replace(/\$([\w.]+)\$/g, (_, k: string) => this.map.get(k) ?? "")
+        .replace(/@[\w.]+!/g, "")
+        // [concept|E] -> concept; [ROOT.Char.GetName|E] and other script calls -> dropped
+        .replace(/\[([^\]|]+)\|[A-Za-z]+\]/g, (_, inner: string) =>
+          /^[\w ]+$/.test(inner) ? inner : "",
+        )
+        .replace(/\[[^\]]*\]/g, "")
+        .replace(/#[A-Za-z_]+ /g, "")
+        .replace(/#!/g, "")
+        .replace(/\\n/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim()
+    );
   }
 
   resolveTrait(idx: number): string {

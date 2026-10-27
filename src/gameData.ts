@@ -16,10 +16,12 @@ export function resolveGameRoot(gameDir: string | null): string | null {
 export class GameData {
   readonly baronyProvince = new Map<string, number>();
   readonly provinceBarony = new Map<number, string>();
+  /** The folder holding `common/`, `events/`, `localization/`; null without a game dir. */
+  readonly root: string | null;
 
   constructor(gameDir: string | null) {
-    const root = resolveGameRoot(gameDir);
-    if (root) this.loadLandedTitles(join(root, "common", "landed_titles"));
+    this.root = resolveGameRoot(gameDir);
+    if (this.root) this.loadLandedTitles(join(this.root, "common", "landed_titles"));
   }
 
   private loadLandedTitles(dir: string): void {

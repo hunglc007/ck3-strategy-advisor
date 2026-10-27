@@ -11,6 +11,7 @@ import { registerExpansionTool } from "./expansion.js";
 import { registerTitlesTool } from "./titles.js";
 import { registerForeignRealmTool } from "./foreignRealm.js";
 import { registerExtendedTools } from "./extended.js";
+import { registerGameLookupTools } from "./gameLookup.js";
 
 export function registerAllTools(server: McpServer, cache: SnapshotCache) {
   registerOverview(server, cache);
@@ -24,4 +25,5 @@ export function registerAllTools(server: McpServer, cache: SnapshotCache) {
   registerTitlesTool(server, cache);
   registerForeignRealmTool(server, cache);
   registerExtendedTools(server, cache);
+  registerGameLookupTools(server, cache);
 }
