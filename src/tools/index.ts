@@ -13,6 +13,7 @@ import { registerForeignRealmTool } from "./foreignRealm.js";
 import { registerCouncilTool } from "./council.js";
 import { registerTargetsTool } from "./targets.js";
 import { registerMarriageTool } from "./marriage.js";
+import { registerCourtiersTool } from "./courtiers.js";
 
 export function registerAllTools(server: McpServer, cache: SnapshotCache) {
   registerOverview(server, cache);
@@ -28,4 +29,5 @@ export function registerAllTools(server: McpServer, cache: SnapshotCache) {
   registerCouncilTool(server, cache);
   registerTargetsTool(server, cache);
   registerMarriageTool(server, cache);
+  registerCourtiersTool(server, cache);
 }

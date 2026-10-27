@@ -53,8 +53,8 @@ const ADULT_AGE = 16;
 /** A penalty at or above this makes someone ineligible rather than merely worse. */
 const DISQUALIFY = 100;
 
-const SEVERE_TRAITS = /^(lunatic_[23]|possessed_\d|incapable|infirm|maimed|dull)$/;
-const MILD_TRAITS = /^(lunatic_1|depressed_\d|ill|pneumonic|lazy|stuttering)$/;
+export const SEVERE_TRAITS = /^(lunatic_[23]|possessed_\d|incapable|infirm|maimed|dull)$/;
+export const MILD_TRAITS = /^(lunatic_1|depressed_\d|ill|pneumonic|lazy|stuttering)$/;
 
 /** Reasons a character is a risky or poor council pick; empty when none apply. */
 export function riskNotes(c: Courtier): string[] {

@@ -1,14 +1,16 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadTraitSkills, type TraitSkillData } from "./traitSkills.js";
+import { loadProvinceRegions, type ProvinceRegion } from "./provinces.js";
 
 export class Localizer {
   private map = new Map<string, string>();
   private traitLookup: string[] | null = null;
   private warned = false;
   private traitSkills = new Map<string, TraitSkillData>();
+  private provinces: Map<number, ProvinceRegion> | null = null;
 
-  constructor(gameDir: string | null) {
+  constructor(private gameDir: string | null) {
     if (gameDir) {
       this.loadDir(join(gameDir, "localization", "english"));
       this.traitSkills = loadTraitSkills(gameDir);
@@ -23,6 +25,12 @@ export class Localizer {
   /** Skill modifiers a trait grants, from the game's common/traits files. */
   traitSkillData(key: string): TraitSkillData | undefined {
     return this.traitSkills.get(key);
+  }
+
+  /** De jure county/duchy/kingdom/empire of a province id; parsed from the game files on first use. */
+  provinceRegion(id: number): ProvinceRegion | undefined {
+    this.provinces ??= loadProvinceRegions(this.gameDir);
+    return this.provinces.get(id);
   }
 
   private loadDir(dir: string): void {

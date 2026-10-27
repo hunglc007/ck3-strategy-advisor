@@ -19,9 +19,9 @@ export interface TraitSkillData {
   tracks: { xp: number; bonus: SkillBonus }[][];
 }
 
-type Node = Array<[string, string | Node]>;
+export type Node = Array<[string, string | Node]>;
 
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
   const out: string[] = [];
   for (const rawLine of text.split("\n")) {
     const line = rawLine.replace(/#.*$/, "");
@@ -31,11 +31,17 @@ function tokenize(text: string): string[] {
   return out;
 }
 
-function parseBlock(tokens: string[], pos: { i: number }): Node {
+export function parseBlock(tokens: string[], pos: { i: number }): Node {
   const node: Node = [];
   while (pos.i < tokens.length) {
     const tok = tokens[pos.i++]!;
     if (tok === "}") return node;
+    if (tok === "{") {
+      // Anonymous block, e.g. the list after `rgb` in `color = rgb { 1 2 3 }`: skip it whole
+      // so its closing brace is not mistaken for the end of the enclosing block.
+      parseBlock(tokens, pos);
+      continue;
+    }
     if (tokens[pos.i] === "=") {
       pos.i++;
       if (tokens[pos.i] === "{") {
