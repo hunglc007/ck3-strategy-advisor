@@ -79,26 +79,27 @@ Or in **Claude Desktop**, add to `claude_desktop_config.json`:
 
 ## Tools
 
-| Tool             | What it returns                                                                                           |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `realm_overview` | Ruler, age, title & tier, gold/income, prestige/piety, legitimacy, laws, limits. Start here.              |
-| `alerts`         | The game's own "important actions" nudges (unmarried, CB available, unstationed MaA…).                    |
-| `military`       | Levy + strength, your men-at-arms (type, size, station), ongoing wars.                                    |
-| `succession`     | Heirs in order, succession & gender laws, rival claimants.                                                |
-| `diplomacy`      | Alliances, truces, independence, and who most dislikes you.                                               |
-| `vassals`        | Your most powerful vassals: power owed, opinion, council seat, faction danger flag.                       |
-| `titles`         | Titles you personally hold, grouped by tier, each with its de jure liege.                                 |
-| `factions`       | Factions targeting you: type, strength vs. their threshold, members, leader.                              |
-| `expansion`      | Claims, unheld de jure titles, your de jure land held by others, CB targets, wars.                        |
-| `court`          | Council (task, skills, traits), court positions, knights, best courtier per skill (base + trait bonuses). |
-| `family`         | Parents, spouses, children, siblings; for you, heirs labelled by kinship.                                 |
-| `domain`         | Your counties (development, control) and holdings (buildings, slots, levy, income).                       |
-| `intrigue`       | Secrets you've discovered, your own secrets, hooks you hold / others hold on you.                         |
-| `game_search`    | Search the installed game's rules data (men-at-arms, CBs, buildings, traits, decisions…).                 |
-| `game_entry`     | One entry's name, description, source file and raw script (numbers, conditions, effects).                 |
-| `find_character` | Search living characters by (partial) name → ids.                                                         |
-| `character`      | Full dossier for one character id: age, court, traits, skills, wealth, claims.                            |
-| `foreign_realm`  | Look up any realm by name/key — ruler, army, allies, liege, active wars.                                  |
+| Tool                  | What it returns                                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `realm_overview`      | Ruler, age, title & tier, gold/income, prestige/piety, legitimacy, laws, limits. Start here.              |
+| `alerts`              | The game's own "important actions" nudges (unmarried, CB available, unstationed MaA…).                    |
+| `military`            | Levy + strength, your men-at-arms (type, size, station), ongoing wars.                                    |
+| `succession`          | Heirs in order, succession & gender laws, rival claimants.                                                |
+| `diplomacy`           | Alliances, truces, independence, and who most dislikes you.                                               |
+| `vassals`             | Your most powerful vassals: power owed, opinion, council seat, faction danger flag.                       |
+| `titles`              | Titles you personally hold, grouped by tier, each with its de jure liege.                                 |
+| `factions`            | Factions targeting you: type, strength vs. their threshold, members, leader.                              |
+| `expansion`           | Claims, unheld de jure titles, your de jure land held by others, CB targets, wars.                        |
+| `court`               | Council (task, skills, traits), court positions, knights, best courtier per skill (base + trait bonuses). |
+| `family`              | Parents, spouses, children, siblings; for you, heirs labelled by kinship.                                 |
+| `domain`              | Your counties (development, control) and holdings (buildings, slots, levy, income).                       |
+| `intrigue`            | Secrets you've discovered, your own secrets, hooks you hold / others hold on you.                         |
+| `marriage_candidates` | Who a character (default: your heir) could marry, rebuilt from the game's arrange-marriage rules.         |
+| `game_search`         | Search the installed game's rules data (men-at-arms, CBs, buildings, traits, decisions…).                 |
+| `game_entry`          | One entry's name, description, source file and raw script (numbers, conditions, effects).                 |
+| `find_character`      | Search living characters by (partial) name → ids.                                                         |
+| `character`           | Full dossier for one character id: age, court, traits, skills, wealth, claims.                            |
+| `foreign_realm`       | Look up any realm by name/key — ruler, army, allies, liege, active wars.                                  |
 
 ## Known limitations (v1)
 
@@ -127,8 +128,10 @@ These reflect what is and isn't stored in the save:
   distinction in the save.
 - **Men-at-arms** are listed for the player's own regiments only (vassals'
   hired regiments are not attributed).
-- **Marriage candidates** are not stored in the save; `alerts` only says who
-  can/should marry.
+- **Marriage candidates** are not stored in the save. `marriage_candidates` rebuilds the
+  game's list from its own rules (ruler + courtiers + children of every ruler, filtered by
+  the can-marry and consanguinity triggers). It does not know the acceptance chance, clergy
+  rules or multi-spouse doctrines, and ranks by court standing rather than game AI.
 - `domain` needs `CK3_GAME_DIR`: the barony → province link lives in the game's
   `common/landed_titles`, not in the save.
 - **Opinion** values (e.g. in `diplomacy`/`vassals`) are approximate, summed from

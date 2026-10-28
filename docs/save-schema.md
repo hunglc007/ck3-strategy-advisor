@@ -257,7 +257,7 @@ states MAA is not broken out. Do not fabricate an MAA breakdown.**
 - Faction membership: vassalId present in any `/faction_manager/factions/{id}/members[*].character` where that faction's `target === {player}`.
 
 ### Scoped-out / stated-limitation features
-- **Marriage candidates (Task 12):** NOT mapped in the gamestate — scope OUT; the plan hedges "if cheaply available".
+- **Marriage candidates (Task 12):** not stored in the gamestate; rebuilt in `extract/marriage.ts` from the game's `arrange_marriage_interaction` / `can_marry_character_trigger` (see the 1.20 addendum).
 - **Strong vs weak claims (Task 14):** NOT stored. Report claims as pressed/unpressed only (from `alive_data/claim[*].pressed`), and say so in the tool description.
 - **Character name search (Task 9 find_character):** `first_name` is CK3 loc-encoded (e.g. "CrI_chA_n" for Críchán) and the game dir may be null, so display-name search is BEST-EFFORT substring over the raw + resolved name. Document this limitation in the tool description.
 
@@ -287,3 +287,4 @@ New sections used by the 1.20 tools:
 - **Culture name:** `/culture_manager/cultures/{id}/name`.
 - **Secrets:** `/secrets/secrets/{id}` = `{ type, owner, target?: {type:"char",identity}, participants }`; `/secrets/known_secrets` = array of `{ secret: <id>, owner: <character who knows it> }`.
 - **Hooks:** in `/relations/active_relations` entries, `active_hook_0` is held by `first` over `second`, `active_hook_1` by `second` over `first`.
+- **Rites (faith) and marriage:** a character's `rite` is an id into `/rites/database/{id}` = `{ rite_type, faith, data: { name, tag, doctrines… } }`; each `doctrine=doctrine_x` line is repeated under it (jomini returns an array under `doctrine`). Consanguinity doctrines decide which kin may marry. The game's arrange-marriage list per ruler is the ruler, `every_courtier`/`every_courtier_away` (`court_data.employer`) and `every_child`, filtered by `can_marry_character_trigger`. A ruler is anyone with `landed_data.domain`. Pool characters (`alive_data.pool_history`) have no employer and appear in no list until invited. `can_not_marry` is a trait flag (eunuchs, `devoted`, `order_member`).

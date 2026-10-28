@@ -25,6 +25,13 @@ base + trait bonuses using `cache.lookup.skillsOfTrait` (parsed from
 `character` use it; keep new tools that show skills on it rather than the raw
 `skill` array.
 
+`extract/marriage.ts` (`extractMarriageCandidates`, tool `marriage_candidates`) re-creates the
+game's arrange-marriage list: opposite-sex, unmarried/unbetrothed characters who are rulers,
+the courtiers of rulers or rulers' children, without a `can_not_marry` trait and not forbidden
+by either rite's consanguinity doctrine (`/rites/database`). It ranks by court tier + same
+rite, then computes skills only for a shortlist (skill lookups are the slow part). It reuses
+`Kin`/`buildParentIndex` from `extract/family.ts`.
+
 `gameLookup.ts` (`GameLookup`, shared as `cache.lookup`, used by `tools/gameLookup.ts`: `game_search`,
 `game_entry`) is a lazy per-category index over the game's own script files.
 `parseTopLevel` splits a `.txt` into top-level `key = { ... }` blocks (comments
