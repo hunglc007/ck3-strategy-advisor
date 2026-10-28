@@ -85,7 +85,7 @@ function holdingLine(h: Holding, cache: SnapshotCache): string {
       ? `\n    - Buildings: ${h.buildings.join(", ")}`
       : "\n    - Buildings: none";
   return (
-    `  - ${h.title}${where}${h.isCapital ? " ★capital" : ""}: ${parts.join(", ")}` +
+    `  - ${h.title}${where}${h.isCapital ? " ★capital" : ""}${h.leased ? " (leased temple, not counted in the domain limit)" : ""}: ${parts.join(", ")}` +
     `${buildings}; ${h.emptySlots} empty slot(s)`
   );
 }

@@ -166,3 +166,21 @@ test("Localizer.text strips CK3 markup and resolveTrait prefers trait_ keys", ()
   l.setTraitLookup(["brave"]);
   expect(l.resolveTrait(0)).toBe("Brave");
 });
+
+test("a temple leased to the church (theocratic_lease) is not counted against the domain limit", async () => {
+  const leased = Buffer.from(
+    GS.toString("utf8").replace(
+      '15={ key="b_roscrea"',
+      '15={ key="b_roscrea" theocratic_lease=yes',
+    ),
+  );
+  const snap = await buildSnapshot(leased, loc);
+  expect(snap.overview.holdings).toBe(1); // Limerick only; Roscrea is leased
+  const game = new GameData(fakeGameDir());
+  const d = await queryGamestate(leased, (q) => extractDomain(q, loc, game));
+  expect(d.holdingCount).toBe(1);
+  const roscrea = [...d.counties.flatMap((c) => c.holdings), ...d.looseHoldings].find(
+    (h) => h.title === "b_roscrea",
+  );
+  expect(roscrea).toMatchObject({ leased: true });
+});

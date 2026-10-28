@@ -1,7 +1,7 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
 import type { GameData } from "../gameData.js";
-import { num, playerIdOf } from "./common.js";
+import { num, playerIdOf, isLeasedTitle } from "./common.js";
 import { resolveTitleName } from "./titleUtils.js";
 
 export interface Holding {
@@ -15,6 +15,8 @@ export interface Holding {
   income: number | null;
   fortLevel: number | null;
   isCapital: boolean;
+  /** A temple leased out to the church: shown, but not counted against the domain limit. */
+  leased: boolean;
 }
 export interface County {
   title: string;
@@ -72,6 +74,7 @@ export function extractDomain(q: Query, loc: Localizer, game: GameData): DomainI
       income: num(h["income"]),
       fortLevel: num(prov["fort_level"]),
       isCapital: id === capital,
+      leased: isLeasedTitle(q, id),
     };
   };
 
@@ -101,7 +104,7 @@ export function extractDomain(q: Query, loc: Localizer, game: GameData): DomainI
   return {
     counties,
     looseHoldings: baronyIds.filter((b) => !placed.has(b)).map(holding),
-    holdingCount: baronyIds.length,
+    holdingCount: baronyIds.filter((b) => !isLeasedTitle(q, b)).length,
     domainLimit: num(q.at(`${landed}/domain_limit`)),
   };
 }

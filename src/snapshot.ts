@@ -12,7 +12,7 @@ import {
 } from "./extract/vassals.js";
 import { extractExpansion, type ExpansionInfo } from "./extract/expansion.js";
 import { extractTitles, type TitlesInfo } from "./extract/titles.js";
-import { characterAge, idList } from "./extract/common.js";
+import { characterAge, idList, isLeasedTitle } from "./extract/common.js";
 
 export interface RealmOverview {
   rulerName: string;
@@ -34,7 +34,7 @@ export interface RealmOverview {
   government: string | null;
   laws: string[];
   spouses: number;
-  /** Personally held holdings (baronies) vs the domain limit. */
+  /** Personally held holdings (baronies, excluding leased temples) vs the domain limit. */
   holdings: number;
   domainLimit: number | null;
   /** Vassals counting toward the vassal limit vs that limit. */
@@ -72,7 +72,7 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
     const domain = (q.at(`${landed}/domain`) as number[] | undefined) ?? [];
     const holdings = domain.filter((t) => {
       const key = q.at(`/landed_titles/landed_titles/${t}/key`);
-      return typeof key === "string" && key.startsWith("b_");
+      return typeof key === "string" && key.startsWith("b_") && !isLeasedTitle(q, t);
     }).length;
     const laws = (q.at(`${landed}/laws`) as string[] | undefined) ?? [];
     const overview: RealmOverview = {

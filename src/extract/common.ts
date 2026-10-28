@@ -4,6 +4,16 @@ export function num(v: unknown): number | null {
   return typeof v === "number" ? v : null;
 }
 
+/**
+ * A barony flagged `theocratic_lease` is a temple leased out to the church, not a holding the
+ * ruler keeps in the domain: the game's lease rules give its taxes and levies to the lessee, and
+ * the in-game domain size does not count it (a ruler with 3 castles and a leased temple sees 3).
+ */
+export function isLeasedTitle(q: Query, titleId: number): boolean {
+  const v = q.at(`/landed_titles/landed_titles/${titleId}/theocratic_lease`);
+  return v === true || v === "yes";
+}
+
 export function playerIdOf(q: Query): number {
   return q.at("/played_character/character") as number;
 }
