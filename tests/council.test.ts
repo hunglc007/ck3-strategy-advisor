@@ -87,3 +87,11 @@ test("an unpressed family claim only costs a point, it does not disqualify", () 
   };
   expect(suggestCouncil(info).find((a) => a.role === "spymaster")!.suggested!.id).toBe(1);
 });
+
+test("the player's spouse is not suggested for another seat", () => {
+  const info: CouncilInfo = {
+    courtiers: [c(1, 30, 0, 0, 12, 0, 0, { spouse: true }), c(2, 30, 0, 0, 9, 0, 0)],
+    seats: { ...seats, steward: null },
+  };
+  expect(suggestCouncil(info).find((a) => a.role === "steward")!.suggested!.id).toBe(2);
+});

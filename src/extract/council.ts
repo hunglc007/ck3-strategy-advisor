@@ -2,6 +2,7 @@ import type { Query } from "../parser.js";
 import { fullNameOf } from "./names.js";
 import type { Localizer } from "../localization.js";
 import { effectiveSkills } from "./skills.js";
+import type { GameLookup } from "../gameLookup.js";
 
 export type CouncilRole = "chancellor" | "steward" | "marshal" | "spymaster" | "court_chaplain";
 export type SkillKey = "diplomacy" | "martial" | "stewardship" | "intrigue" | "learning";
@@ -35,6 +36,8 @@ export interface Courtier {
   /** Landed direct vassal of the player rather than a courtier. */
   vassal: boolean;
   sameHouse: boolean;
+  /** The player's spouse: sits in the separate spouse seat, so is not a candidate for the others. */
+  spouse?: boolean;
   health: number | null;
   /** Summed temporary opinion of the player; null when none is stored. */
   opinion: number | null;
@@ -99,6 +102,7 @@ function playerTitleSet(q: Query, playerId: number): Set<number> {
 export function extractCouncil(
   q: Query,
   loc: Localizer,
+  lookup: GameLookup | null,
   nowYear: number | null,
   factionMemberIds: Set<number> = new Set(),
 ): CouncilInfo {
@@ -118,7 +122,9 @@ export function extractCouncil(
       if (!v || typeof v !== "object") continue;
       const t = v as Record<string, unknown>;
       if (t["court_owner"] !== playerId) continue;
-      const role = TASK_ROLE[String(t["type"])];
+      const type = String(t["type"]);
+      // Position from the game files, so a councillor on a non-default task still holds the seat.
+      const role = loc.councilTaskRole(type) ?? TASK_ROLE[type];
       if (!role) continue;
       const owner = t["owner"];
       if (typeof owner === "number") {
@@ -138,6 +144,11 @@ export function extractCouncil(
   }
 
   const houseId = q.at(`/living/${playerId}/dynasty_house`);
+  const spouseIds = new Set<number>(
+    ([] as unknown[])
+      .concat(q.at(`/living/${playerId}/family_data/spouse`) ?? [])
+      .filter((x): x is number => typeof x === "number"),
+  );
   const yourTitles = playerTitleSet(q, playerId);
 
   const living = q.at("/living") as Record<string, unknown> | undefined;
@@ -170,12 +181,7 @@ export function extractCouncil(
 
   const courtiers: Courtier[] = found.map(({ id, c }) => {
     const traitIdx = (c["traits"] as number[] | undefined) ?? [];
-    const skills = effectiveSkills(
-      loc,
-      (c["skill"] as number[] | undefined) ?? [],
-      traitIdx,
-      (c["trait_xp_amounts"] as number[] | undefined) ?? [],
-    ).total;
+    const skills = effectiveSkills(q, loc, lookup, id).effective;
     const birth = c["birth"];
     const birthYear = birth instanceof Date ? birth.getUTCFullYear() : null;
     const alive = c["alive_data"] as Record<string, unknown> | undefined;
@@ -193,6 +199,7 @@ export function extractCouncil(
       knight: court?.["knight"] === true || court?.["knight"] === "yes",
       seat: seatOf.get(id) ?? null,
       vassal: vassalIds.has(id),
+      spouse: spouseIds.has(id),
       sameHouse: houseId !== undefined && c["dynasty_house"] === houseId,
       health: num(alive?.["health"]),
       opinion: opinionMap.has(id) ? opinionMap.get(id)! : null,
@@ -231,7 +238,7 @@ function score(c: Courtier, role: CouncilRole): number {
 export function suggestCouncil(info: CouncilInfo): Assignment[] {
   const roles = Object.keys(ROLE_SKILL) as CouncilRole[];
   const pool = info.courtiers.filter(
-    (c) => (c.age === null || c.age >= ADULT_AGE) && riskPenalty(c) < DISQUALIFY,
+    (c) => !c.spouse && (c.age === null || c.age >= ADULT_AGE) && riskPenalty(c) < DISQUALIFY,
   );
   const byId = new Map(info.courtiers.map((c) => [c.id, c]));
 

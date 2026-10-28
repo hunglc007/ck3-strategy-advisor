@@ -3,6 +3,8 @@ import type { Localizer } from "./localization.js";
 import { extractGamestate, IronmanError } from "./envelope.js";
 import { buildSnapshot, type Snapshot } from "./snapshot.js";
 import { queryGamestate, type Query } from "./parser.js";
+import { GameData } from "./gameData.js";
+import { GameLookup } from "./gameLookup.js";
 
 export class SnapshotCache {
   private current: Snapshot | null = null;
@@ -11,10 +13,22 @@ export class SnapshotCache {
   private gamestateText: string | null = null;
   private inFlight: Promise<Snapshot | { error: string }> | null = null;
   private inFlightKey = "";
+  /** Index over the game's script files (rules lookups, trait skill modifiers). */
+  readonly lookup: GameLookup;
+
   constructor(
     private source: Source,
     readonly loc: Localizer,
-  ) {}
+    readonly game: GameData = new GameData(null),
+  ) {
+    this.lookup = new GameLookup(game.root, loc);
+  }
+
+  /** Display name for a province id: its barony's localized name, else "province N". */
+  provinceName(id: number): string {
+    const barony = this.game.provinceBarony.get(id);
+    return barony ? this.loc.resolve(barony) : `province ${id}`;
+  }
 
   async get(): Promise<Snapshot | { error: string }> {
     const ref = await this.source.latest();

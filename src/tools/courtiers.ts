@@ -1,13 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SnapshotCache } from "../cache.js";
 import { stamp } from "../format.js";
-import { ROLE_SKILL, type CouncilRole } from "../extract/council.js";
+import { ROLE_SKILL, extractCouncil, type CouncilRole } from "../extract/council.js";
+import { extractFactions } from "../extract/vassals.js";
 import { z } from "zod";
 import { extractPool, type PoolCharacter, type PoolScope } from "../extract/courtiers.js";
 
 const UPGRADE_MARGIN = 3;
 
-function desc(c: PoolCharacter, skill: keyof PoolCharacter["skills"]): string {
+function desc(c: PoolCharacter, skill: keyof PoolCharacter["skills"] & string): string {
   const s = c.skills;
   return (
     `${c.name} (${c.id}, ${c.female ? "F" : "M"} ${c.age}): ${skill.slice(0, 3).toUpperCase()} ${s[skill]} ` +
@@ -37,19 +38,25 @@ export function registerCourtiersTool(server: McpServer, cache: SnapshotCache) {
       const snap = await cache.get();
       if ("error" in snap) return { isError: true, content: [{ type: "text", text: snap.error }] };
       const year = Number.parseInt(snap.date, 10);
-      const result = await cache.query((q) => extractPool(q, cache.loc, year, scope ?? "empire"));
-      if (result !== null && typeof result === "object" && "error" in result)
-        return {
-          isError: true,
-          content: [{ type: "text", text: (result as { error: string }).error }],
-        };
-      const pool = result as ReturnType<typeof extractPool>;
+      const result = await cache.query((q) => ({
+        pool: extractPool(q, cache.loc, cache.lookup, year, scope ?? "empire"),
+        council: extractCouncil(
+          q,
+          cache.loc,
+          cache.lookup,
+          year,
+          extractFactions(q, cache.loc).memberIds,
+        ),
+      }));
+      if ("error" in result)
+        return { isError: true, content: [{ type: "text", text: result.error }] };
+      const { pool, council } = result;
       if (!pool)
         return { content: [{ type: "text", text: stamp(snap, "Player faith not found.") }] };
 
       const holder = (role: CouncilRole) => {
-        const id = snap.council.seats[role];
-        return snap.council.courtiers.find((c) => c.id === id) ?? null;
+        const id = council.seats[role];
+        return council.courtiers.find((c) => c.id === id) ?? null;
       };
       const usable = pool.characters.filter((c) => c.flags.length === 0);
       let body = `# Court candidates: ${pool.characters.length} unattached same-faith adults${

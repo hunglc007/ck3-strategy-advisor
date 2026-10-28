@@ -1,358 +1,492 @@
 import type { Query } from "../parser.js";
-import { fullName, fullNameOf } from "./names.js";
 import type { Localizer } from "../localization.js";
-import { resolveTitleName } from "./titleUtils.js";
-import { effectiveSkills, type Skills } from "./skills.js";
+import type { GameLookup } from "../gameLookup.js";
+import { ageAt, characterAge, characterRecord, idList, num, playerIdOf } from "./common.js";
+import { Kin, buildParentIndex } from "./family.js";
+import { fullNameOf } from "./names.js";
+import { effectiveSkills, type EffectiveSkills } from "./skills.js";
+import { resolveTitleName, titleTierFromKey, type TitleTier } from "./titleUtils.js";
 
-export interface AllyRuler {
-  id: number;
-  name: string;
-  /** Army strength of that ruler. */
-  strength: number;
-  relation: "self" | "parent" | "sibling" | "child";
+type Rec = Record<string, unknown>;
+
+export interface MarriageOptions {
+  /** Whose spouse to look for; defaults to the player's first heir. */
+  id?: number;
+  minAge?: number;
+  maxAge?: number;
+  /**
+   * Keep only candidates who share a language with the subject. Off by default: the game lists
+   * people by diplomatic range, not by language.
+   */
+  sameLanguage?: boolean;
+  /**
+   * Only people within this map distance of the player. The game only lists rulers in diplomatic
+   * range (capped at 1000 game units); the default reproduces the ~480 candidates a Munster ruler
+   * sees. Pass a large number for the whole world.
+   */
+  maxDistance?: number;
+  /** "standing" (default): court tier and rite first. "priority": ally strength, then youth and fertility, skills, genes. */
+  rank?: "standing" | "priority";
+  /** Keep only candidates whose court/parent matches this name (substring, case-insensitive). */
+  host?: string;
+  limit?: number;
 }
 
 export interface MarriageCandidate {
   id: number;
   name: string;
-  age: number;
-  skills: Skills;
+  age: number | null;
+  female: boolean;
+  /** How the candidate is reachable in the game's marriage list. */
+  source: "ruler" | "courtier" | "ruler's child" | "pool";
+  /** Ruler whose list they appear in (the ruler's own id for a ruler). */
+  host: { id: number; name: string; title: string | null; tier: TitleTier | null } | null;
+  /** The candidate's own title if they rule. */
+  ownTitle: string | null;
+  rite: string | null;
+  /** Kinship to the subject when there is one allowed by both rites. */
+  kinship: string | null;
+  skills: EffectiveSkills;
   traits: string[];
-  /** Heritable good/bad traits (genetic quality of future children). */
+  fertility: number | null;
+  /** Heritable good and bad traits (genetic quality of future children). */
   goodGenes: string[];
   badGenes: string[];
-  /** Titles they hold a claim on (up to 4), a possible future claim for your children. */
+  /** Titles they hold a claim on (up to 4). */
   claims: string[];
-  fertility: number | null;
-  /** Whose court she/he is in (or the candidate if landed); null for the unattached pool. */
-  home: { id: number; name: string; realm: string | null; strength: number | null } | null;
-  /** Home realm lies in the same de jure kingdom as your primary title. */
-  nearby: boolean;
-  /** Same culture as you (a cheap stand-in for distance, which the save does not give). */
-  sameCulture: boolean;
   /**
-   * Relation to the ruler whose court they are in: only a close relative (daughter or
-   * sister, read from the living and dead parents' child lists) normally gives a marriage
-   * alliance. "self" when the candidate is the ruler; null for a mere courtier or unknown.
+   * Strongest ruler among the candidate's close family (parents, siblings, children) or the
+   * candidate: the game lets a marriage unlock an alliance with such a ruler.
    */
-  kinOfRuler: "daughter" | "sister" | "self" | null;
-  /** Strongest ruler among their close family (parents, siblings, children) or themselves. */
-  allyRuler: AllyRuler | null;
+  allyRuler: { id: number; name: string; strength: number; relation: string } | null;
   /** Map distance from the player's location, when known. */
   distance: number | null;
-  /** Your own court member. */
-  inYourCourt: boolean;
-  /** Default blend: local first, then fertility/skills/ally strength/genes. */
-  score: number;
-  /** Alliance strength tier first, then youth+fertility, skills, genes, claims. */
-  priorityScore: number;
+  notes: string[];
 }
 
 export interface MarriageInfo {
-  you: { id: number; name: string; age: number };
-  faithMatched: number;
+  subject: { id: number; name: string; age: number | null; female: boolean; rite: string | null };
   candidates: MarriageCandidate[];
+  total: number;
+  scanned: number;
+  excluded: Record<string, number>;
 }
 
-export type MarriageRank = "local" | "priority";
+const TIER_WEIGHT: Record<TitleTier, number> = {
+  empire: 5,
+  kingdom: 4,
+  duchy: 3,
+  county: 2,
+  barony: 1,
+  other: 0,
+};
 
-const GOOD_GENES = /^((beauty|intellect|physique)_good_d|fecund|pure_blooded)$/;
-const BAD_GENES =
-  /^((beauty|intellect|physique)_bad_d|inbred|bleeder|clubfooted|hunchbacked|lisping|stuttering|weak|dull|spindly|scaly|albino|wheezing|infertile)$/;
-
-/** The game only lists people within diplomatic range (capped at 1000 game units); 1130 map units reproduces the ~480 candidates seen around Munster. */
+/** The game only lists rulers in diplomatic range (max 1000 game units); 1130 map units reproduces the ~480 candidates seen around Munster. */
 const DEFAULT_RANGE = 1130;
-const MIN_AGE = 16;
-const MAX_AGE = 45;
+const GOOD_GENES = /^((beauty|intellect|physique)_good_\d|fecund|pure_blooded)$/;
+const BAD_GENES =
+  /^((beauty|intellect|physique)_bad_\d|inbred|bleeder|clubfooted|hunchbacked|lisping|stuttering|weak|dull|spindly|scaly|albino|wheezing|infertile)$/;
 
-function num(v: unknown): number | null {
-  return typeof v === "number" ? v : null;
+// Consanguinity doctrines of a rite; the game blocks a marriage when either side's rite forbids
+// the relation (unless one is the other's courtier).
+const CLOSE = new Set(["child", "grandchild", "parent", "grandparent", "sibling", "half-sibling"]);
+const UNCLE_NIBLING = new Set(["uncle/aunt", "nephew/niece"]);
+
+function forbiddenBy(doctrines: string[], kinship: string, sameDynasty: boolean): boolean {
+  const has = (d: string) => doctrines.includes(`doctrine_consanguinity_${d}`);
+  if (has("unrestricted")) return false;
+  if (has("dynastic") && sameDynasty) return true;
+  if (has("restricted"))
+    return CLOSE.has(kinship) || UNCLE_NIBLING.has(kinship) || kinship === "first cousin";
+  if (has("cousins")) return CLOSE.has(kinship) || UNCLE_NIBLING.has(kinship);
+  if (has("aunt_nephew_and_uncle_niece")) return CLOSE.has(kinship);
+  return false;
 }
 
-function kingdomOf(q: Query, titleId: number | undefined): number | undefined {
-  let cur = titleId;
-  for (let hop = 0; cur !== undefined && hop < 5; hop++) {
-    const key = q.at(`/landed_titles/landed_titles/${cur}/key`) as string | undefined;
-    if (key && (key[0] === "k" || key[0] === "e")) return cur;
-    cur = q.at(`/landed_titles/landed_titles/${cur}/de_jure_liege`) as number | undefined;
+// Every `doctrine = x` line under a rite record, wherever it sits in the structure.
+function collectDoctrines(node: unknown, out: string[] = []): string[] {
+  if (Array.isArray(node)) {
+    for (const n of node) collectDoctrines(n, out);
+  } else if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node as Rec)) {
+      if (k === "doctrine") {
+        for (const d of Array.isArray(v) ? v : [v]) if (typeof d === "string") out.push(d);
+      } else {
+        collectDoctrines(v, out);
+      }
+    }
   }
-  return undefined;
+  return out;
+}
+
+class Rites {
+  private cache = new Map<number, { name: string; doctrines: string[] }>();
+  constructor(private q: Query) {}
+  get(id: number | null): { name: string; doctrines: string[] } | null {
+    if (id === null) return null;
+    let r = this.cache.get(id);
+    if (!r) {
+      const rec = this.q.at(`/rites/database/${id}`) as Rec | undefined;
+      const data = (rec?.["data"] as Rec | undefined) ?? {};
+      const name =
+        (typeof data["name"] === "string" && data["name"]) ||
+        (typeof data["tag"] === "string" && data["tag"]) ||
+        `rite ${id}`;
+      r = { name, doctrines: collectDoctrines(rec) };
+      this.cache.set(id, r);
+    }
+    return r;
+  }
 }
 
 /**
- * Unmarried, same-faith, opposite-gender adults you could marry, best first. "Best"
- * weighs fertility (heirs), stewardship/diplomacy, how strong the home realm is as an
- * ally, and strongly prefers your de jure region and your culture (no distances in the save). Not in the save, so not checked: close kin
- * beyond your own house, existing betrothals, distance, and personality fit.
+ * Re-creates the game's "arrange marriage" lists. For one ruler the game lists the ruler, their
+ * courtiers (present or away) and their children, then keeps those who satisfy
+ * `can_marry_character_trigger` against the subject. Taking the union over every ruler gives all
+ * characters with a court, every ruler, and every ruler's child. Unattached "pool" characters are
+ * not in any list but can be invited to court first, so they are included and marked.
+ *
+ * Not simulated: the acceptance chance (opinion, alliances), clergy and trait rules, and doctrines
+ * that allow several spouses.
  */
 export function extractMarriageCandidates(
   q: Query,
   loc: Localizer,
-  nowYear: number,
-  limit = 12,
-  opts: {
-    rank?: MarriageRank;
-    minHomeStrength?: number;
-    forCharacter?: number;
-    /** Only people currently located in these empires/kingdoms (title keys, e.g. e_britannia, k_france). */
-    regions?: string[];
-    /**
-     * Only people within this map distance of the player's location. The default roughly matches
-     * the in-game marriage list (calibrated so a Munster ruler sees about 450 candidates).
-     */
-    maxDistance?: number;
-  } = {},
+  lookup: GameLookup | null = null,
+  opts: MarriageOptions = {},
 ): MarriageInfo | null {
-  loc.setTraitLookup((q.at("/traits_lookup") as string[]) ?? null);
-  const playerId = q.at("/played_character/character") as number;
-  const myProvince = ((q.at(`/living/${playerId}/alive_data/location`) as
-    | Record<string, unknown>
-    | undefined) ?? {})["location"] as number | undefined;
-  // The person being married: the player by default, or e.g. the heir.
-  const subjectId = opts.forCharacter ?? playerId;
-  const me = q.at(`/living/${subjectId}`) as Record<string, unknown> | undefined;
-  if (!me) return null;
-  const myFemale = me["female"] === true || me["female"] === "yes";
-  const birth = me["birth"];
-  const myAge = birth instanceof Date ? nowYear - birth.getUTCFullYear() : 0;
+  const playerId = playerIdOf(q);
+  const heir = idList(q.at(`/living/${playerId}/landed_data/succession`))[0];
+  const subjectId = opts.id ?? heir ?? playerId;
+  const subjectRec = characterRecord(q, subjectId);
+  if (!subjectRec || q.at(`/living/${subjectId}/first_name`) === undefined) return null;
+  loc.setTraitLookup((q.at("/traits_lookup") as string[] | null | undefined) ?? null);
 
-  const faithOf = (rite: unknown): number | undefined =>
-    typeof rite === "number"
-      ? (num(q.at(`/rites/database/${rite}/faith`)) ?? undefined)
-      : undefined;
-  const myFaith = faithOf(me["rite"]);
-  const myHouse = me["dynasty_house"];
+  const date = q.at("/date");
+  const minAge = opts.minAge ?? 16;
+  const maxAge = opts.maxAge ?? 45;
+  const limit = opts.limit ?? 25;
+  const subjectFemale = subjectRec["female"] === true;
+  const subjectAge = characterAge(q, subjectId);
+  const rites = new Rites(q);
+  const subjectRiteId = num(subjectRec["rite"]);
+  const subjectRite = rites.get(subjectRiteId);
+  const subjectLangs = new Set(
+    ((subjectRec["alive_data"] as Rec | undefined)?.["languages"] as string[] | undefined) ?? [],
+  );
+  const subjectEmployer = num((subjectRec["court_data"] as Rec | undefined)?.["employer"]);
+  const subjectFam = (subjectRec["family_data"] as Rec | undefined) ?? {};
+  const subjectBetrothed = idList(subjectFam["betrothed"]);
 
-  const myDomain = (q.at(`/living/${playerId}/landed_data/domain`) as number[] | undefined) ?? [];
-  const myKingdom = kingdomOf(q, myDomain[0]);
+  const houseDynasty = (house: unknown): number | null =>
+    typeof house === "number" ? num(q.at(`/dynasties/dynasty_house/${house}/dynasty`)) : null;
+  const subjectDynasty = houseDynasty(subjectRec["dynasty_house"]);
 
-  const living = q.at("/living") as Record<string, Record<string, unknown>> | undefined;
-  // child -> parents, from living and dead characters, to recognise a ruler's daughters and sisters.
-  const parentsOf = new Map<number, number[]>();
-  const childrenOf = new Map<number, number[]>();
-  const addFamilies = (src: unknown) => {
-    if (!src || typeof src !== "object") return;
-    for (const [pid, ch] of Object.entries(src as Record<string, Record<string, unknown>>)) {
-      const kids = (ch?.["family_data"] as Record<string, unknown> | undefined)?.["child"];
-      if (!Array.isArray(kids)) continue;
-      childrenOf.set(
-        Number(pid),
-        kids.filter((k): k is number => typeof k === "number"),
-      );
-      for (const k of kids) {
-        if (typeof k !== "number") continue;
-        const arr = parentsOf.get(k);
-        if (arr) arr.push(Number(pid));
-        else parentsOf.set(k, [Number(pid)]);
+  const kin = new Kin(q, buildParentIndex(q));
+  const playerRec = characterRecord(q, playerId);
+  const playerProvince = num(
+    ((playerRec?.["alive_data"] as Rec | undefined)?.["location"] as Rec | undefined)?.["location"],
+  );
+  const maxDistance = opts.maxDistance ?? DEFAULT_RANGE;
+  const all = (q.at("/living") as Record<string, unknown> | undefined) ?? {};
+  const rec = (id: number): Rec | null => {
+    const raw = all[String(id)];
+    const r = Array.isArray(raw) ? raw[0] : raw;
+    return r && typeof r === "object" ? (r as Rec) : null;
+  };
+  // A parent known to rule (landed) gets the child listed in their marriage list.
+  const isRuler = (r: Rec | null): boolean =>
+    !!r && idList((r["landed_data"] as Rec | undefined)?.["domain"]).length > 0;
+  const topTitle = (r: Rec | null): { name: string; tier: TitleTier } | null => {
+    const first = r ? idList((r["landed_data"] as Rec | undefined)?.["domain"])[0] : undefined;
+    if (first === undefined) return null;
+    const key = q.at(`/landed_titles/landed_titles/${first}/key`);
+    return {
+      name: resolveTitleName(q, loc, first),
+      tier: typeof key === "string" ? titleTierFromKey(key) : "other",
+    };
+  };
+
+  // Relatives the consanguinity rules can care about; everyone else skips the kinship walk.
+  const relatives = new Set<number>();
+  const addAll = (ids: number[]) => ids.forEach((x) => relatives.add(x));
+  const parentIds = kin.parents(subjectId);
+  addAll(parentIds);
+  for (const p of parentIds) {
+    addAll(kin.parents(p));
+    const uncles = kin.siblings(p);
+    addAll(uncles);
+    for (const u of uncles) addAll(kin.children(u));
+  }
+  const siblingIds = kin.siblings(subjectId);
+  addAll(siblingIds);
+  for (const sib of siblingIds) {
+    const nibs = kin.children(sib);
+    addAll(nibs);
+    for (const n of nibs) addAll(kin.children(n));
+  }
+  const childIds = kin.children(subjectId);
+  addAll(childIds);
+  for (const ch of childIds) addAll(kin.children(ch));
+
+  const dynasticRules = (a: { doctrines: string[] } | null, b: { doctrines: string[] } | null) =>
+    [a, b].some((r) => r?.doctrines.includes("doctrine_consanguinity_dynastic"));
+  const titleCache = new Map<number, ReturnType<typeof topTitle>>();
+  const cachedTitle = (id: number, r: Rec | null) => {
+    if (!titleCache.has(id)) titleCache.set(id, topTitle(r));
+    return titleCache.get(id) ?? null;
+  };
+
+  // Traits carrying the `can_not_marry` flag (eunuchs, the devoted, order members) block marriage.
+  const blockingTrait = new Map<number, boolean>();
+  const cannotMarry = (c: Rec): boolean =>
+    idList(c["traits"]).some((idx) => {
+      let blocked = blockingTrait.get(idx);
+      if (blocked === undefined) {
+        const key = loc.traitIdentifier(idx);
+        blocked = !!key && !!lookup?.get("trait", key)?.text.includes("can_not_marry");
+        blockingTrait.set(idx, blocked);
+      }
+      return blocked;
+    });
+
+  const excluded: Record<string, number> = {};
+  const skip = (why: string) => {
+    excluded[why] = (excluded[why] ?? 0) + 1;
+  };
+  type Prelim = Omit<
+    MarriageCandidate,
+    "skills" | "traits" | "goodGenes" | "badGenes" | "claims" | "allyRuler"
+  >;
+  const found: Prelim[] = [];
+  const hostFilter = opts.host?.toLowerCase().replace(/_/g, "");
+  let scanned = 0;
+
+  for (const [key, raw] of Object.entries(all)) {
+    const r = Array.isArray(raw) ? raw[0] : raw;
+    if (!r || typeof r !== "object") continue;
+    const c = r as Rec;
+    const id = Number(key);
+    if (id === subjectId) continue;
+    scanned++;
+    if ((c["female"] === true) === subjectFemale) {
+      skip("same sex");
+      continue;
+    }
+    const age = ageAt(c["birth"], date);
+    if (age === null || age < minAge || age > maxAge) {
+      skip("age outside range");
+      continue;
+    }
+    const fam = (c["family_data"] as Rec | undefined) ?? {};
+    const betrothed = idList(fam["betrothed"]);
+    if (idList(fam["spouse"]).length > 0) {
+      skip("already married");
+      continue;
+    }
+    if (betrothed.length > 0 && !betrothed.includes(subjectId)) {
+      skip("betrothed to someone else");
+      continue;
+    }
+    if (subjectBetrothed.length > 0 && !subjectBetrothed.includes(id)) {
+      skip("subject is betrothed to someone else");
+      continue;
+    }
+
+    if (cannotMarry(c)) {
+      skip("trait forbids marriage");
+      continue;
+    }
+    const alive = (c["alive_data"] as Rec | undefined) ?? {};
+    // Diplomatic range: the game lists only people near the player's court.
+    const candProvince = num((alive["location"] as Rec | undefined)?.["location"]);
+    const distance =
+      playerProvince !== null && candProvince !== null
+        ? loc.distance(playerProvince, candProvince)
+        : null;
+    if (distance !== null && distance > maxDistance) {
+      skip("out of diplomatic range");
+      continue;
+    }
+    if (opts.sameLanguage === true && subjectLangs.size > 0) {
+      const langs = (alive["languages"] as string[] | undefined) ?? [];
+      if (!langs.some((l) => subjectLangs.has(l))) {
+        skip("no shared language");
+        continue;
       }
     }
-  };
-  addFamilies(living);
-  addFamilies(q.at("/dead_unprunable"));
-  const kinOf = (id: number, rulerId: number | null): MarriageCandidate["kinOfRuler"] => {
-    if (rulerId === null) return null;
-    if (rulerId === id) return "self";
-    const mine = parentsOf.get(id) ?? [];
-    if (mine.includes(rulerId)) return "daughter";
-    const theirs = parentsOf.get(rulerId) ?? [];
-    return mine.some((p) => theirs.includes(p)) ? "sister" : null;
-  };
 
-  /**
-   * The game's rule for a marriage alliance (marriage_between_characters_unlocks_alliance): the
-   * spouse is a ruler, or has a ruler among their close family. Close family here is parents,
-   * children and siblings. Returns the strongest such ruler.
-   */
-  const strengthOf = (id: number): number | null => num(q.at(`/living/${id}/landed_data/strength`));
-  const allyRulerOf = (id: number, own: Record<string, unknown>): AllyRuler | null => {
-    const kin = new Set<number>([id]);
-    const parents = parentsOf.get(id) ?? [];
-    for (const p of parents) {
-      kin.add(p);
-      for (const s of childrenOf.get(p) ?? []) kin.add(s);
+    // Where would the game list them?
+    const employer = num((c["court_data"] as Rec | undefined)?.["employer"]);
+    const parents = kin.parents(id);
+    const rulerParent = parents.find((p) => isRuler(rec(p)));
+    let source: MarriageCandidate["source"];
+    let hostId: number | null;
+    if (isRuler(c)) {
+      source = "ruler";
+      hostId = id;
+    } else if (employer !== null) {
+      source = "courtier";
+      hostId = employer;
+    } else if (rulerParent !== undefined) {
+      source = "ruler's child";
+      hostId = rulerParent;
+    } else {
+      source = "pool";
+      hostId = null;
     }
-    for (const ch of childrenOf.get(id) ?? []) kin.add(ch);
-    void own;
-    let best: AllyRuler | null = null;
-    for (const k of kin) {
-      const s = strengthOf(k);
-      if (s === null || (best !== null && s <= best.strength)) continue;
+
+    // Consanguinity under each side's rite, unless one is the other's courtier.
+    const kinship = relatives.has(id) ? kin.relation(subjectId, id) : "relative";
+    const rel = kinship === "relative" ? "" : kinship;
+    const riteId = num(c["rite"]);
+    const rite = rites.get(riteId);
+    const sameDynasty =
+      dynasticRules(subjectRite, rite) &&
+      subjectDynasty !== null &&
+      houseDynasty(c["dynasty_house"]) === subjectDynasty;
+    const courtierOfEither = employer === subjectId || subjectEmployer === id;
+    if (rel && !courtierOfEither) {
+      const blocked =
+        (subjectRite && forbiddenBy(subjectRite.doctrines, rel, sameDynasty)) ||
+        (rite && forbiddenBy(rite.doctrines, rel, sameDynasty));
+      if (blocked) {
+        skip("too closely related");
+        continue;
+      }
+    }
+
+    const hostRec = hostId !== null ? rec(hostId) : null;
+    if (hostFilter) {
+      const names = [hostRec?.["first_name"], c["first_name"]]
+        .filter((n): n is string => typeof n === "string")
+        .map((n) => n.toLowerCase().replace(/_/g, ""));
+      if (!names.some((n) => n.includes(hostFilter))) {
+        skip("host filter");
+        continue;
+      }
+    }
+    const hostTitle = hostId !== null ? cachedTitle(hostId, hostRec) : null;
+    const ownTitle = source === "ruler" ? hostTitle : null;
+
+    const notes: string[] = [];
+    if (source === "pool") notes.push("unattached: invite to your court first");
+    if (betrothed.includes(subjectId)) notes.push("already betrothed to the subject");
+    if (rel) notes.push(`related: ${rel}`);
+    if (sameDynasty) notes.push("same dynasty");
+    if (riteId !== null && subjectRiteId !== null && riteId !== subjectRiteId && rite)
+      notes.push(`other rite: ${rite.name}`);
+    if (source === "courtier" && hostId === subjectEmployer) notes.push("already at your court");
+
+    found.push({
+      id,
+      name: fullNameOf(q, loc, c, id),
+      age,
+      female: c["female"] === true,
+      source,
+      host:
+        hostId !== null
+          ? {
+              id: hostId,
+              name: fullNameOf(q, loc, hostRec ?? undefined, hostId),
+              title: hostTitle?.name ?? null,
+              tier: hostTitle?.tier ?? null,
+            }
+          : null,
+      ownTitle: ownTitle?.name ?? null,
+      rite: rite?.name ?? null,
+      kinship: rel || null,
+      fertility: num(alive["fertility"]),
+      distance,
+      notes,
+    });
+  }
+
+  const subjectRiteName = subjectRite?.name ?? null;
+  // Standing of the connection first (court tier, same rite); skills only break ties.
+  const standing = (m: Prelim) =>
+    (m.host?.tier ? TIER_WEIGHT[m.host.tier] : 0) * 100 +
+    (m.rite !== null && m.rite === subjectRiteName ? 50 : 0);
+  found.sort((a, b) => standing(b) - standing(a));
+
+  // The game's alliance rule: the spouse is a ruler or has a ruler among close family.
+  const strengthOf = (id: number): number | null =>
+    num((characterRecord(q, id)?.["landed_data"] as Rec | undefined)?.["strength"]);
+  const allyRulerOf = (id: number): MarriageCandidate["allyRuler"] => {
+    const family: Array<[number, string]> = [[id, "self"]];
+    for (const p of kin.parents(id)) family.push([p, "parent"]);
+    for (const s2 of kin.siblings(id)) family.push([s2, "sibling"]);
+    for (const ch of kin.children(id)) family.push([ch, "child"]);
+    let best: MarriageCandidate["allyRuler"] = null;
+    for (const [fid, relation] of family) {
+      const st = strengthOf(fid);
+      if (st === null || (best !== null && st <= best.strength)) continue;
       best = {
-        id: k,
-        name: fullName(q, loc, k),
-        strength: s,
-        relation:
-          k === id
-            ? "self"
-            : parents.includes(k)
-              ? "parent"
-              : (childrenOf.get(id) ?? []).includes(k)
-                ? "child"
-                : "sibling",
+        id: fid,
+        name: fullNameOf(q, loc, characterRecord(q, fid) ?? undefined, fid),
+        strength: st,
+        relation,
       };
     }
     return best;
   };
 
-  const found: MarriageCandidate[] = [];
-  let faithMatched = 0;
-  if (living) {
-    const realmCache = new Map<number, MarriageCandidate["home"] & { nearby: boolean }>();
-    const realmOf = (rulerId: number) => {
-      let r = realmCache.get(rulerId);
-      if (!r) {
-        const dom = (q.at(`/living/${rulerId}/landed_data/domain`) as number[] | undefined) ?? [];
-        r = {
-          id: rulerId,
-          name: fullName(q, loc, rulerId),
-          realm: dom[0] !== undefined ? resolveTitleName(q, loc, dom[0]) : null,
-          strength: num(q.at(`/living/${rulerId}/landed_data/strength`)),
-          nearby: myKingdom !== undefined && kingdomOf(q, dom[0]) === myKingdom,
-        };
-        realmCache.set(rulerId, r);
-      }
-      return r;
-    };
-
-    for (const [idStr, c] of Object.entries(living)) {
-      if (!c || typeof c !== "object") continue;
-      const id = Number(idStr);
-      if (id === subjectId || id === playerId) continue;
-      const cProv = (
-        (c["alive_data"] as Record<string, unknown> | undefined)?.["location"] as
-          | Record<string, unknown>
-          | undefined
-      )?.["location"];
-      const distance =
-        myProvince !== undefined && typeof cProv === "number"
-          ? loc.distance(myProvince, cProv)
-          : null;
-      if (distance !== null && distance > (opts.maxDistance ?? DEFAULT_RANGE)) continue;
-      if (opts.regions?.length) {
-        const p = (c["alive_data"] as Record<string, unknown> | undefined)?.["location"] as
-          | Record<string, unknown>
-          | undefined;
-        const r =
-          typeof p?.["location"] === "number" ? loc.provinceRegion(p["location"]) : undefined;
-        if (
-          !r ||
-          !(opts.regions.includes(r.empire ?? "") || opts.regions.includes(r.kingdom ?? ""))
-        )
-          continue;
-      }
-      const female = c["female"] === true || c["female"] === "yes";
-      if (female === myFemale) continue;
-      const b = c["birth"];
-      if (!(b instanceof Date)) continue;
-      const age = nowYear - b.getUTCFullYear();
-      if (age < MIN_AGE || age > MAX_AGE) continue;
-      const fam = c["family_data"] as Record<string, unknown> | undefined;
-      // The game's marriage list drops anyone who can't take another spouse (allowed_more_spouses):
-      // married, or already betrothed (family_data.betrothed).
-      if (
-        fam &&
-        (fam["spouse"] !== undefined ||
-          fam["primary_spouse"] !== undefined ||
-          fam["betrothed"] !== undefined)
-      )
-        continue;
-      if (c["sexuality"] === "homosexual" || c["sexuality"] === "asexual") continue;
-      if (myFaith === undefined || faithOf(c["rite"]) !== myFaith) continue;
-      faithMatched++;
-      if (myHouse !== undefined && c["dynasty_house"] === myHouse) continue; // assume close kin
-
-      const court = c["court_data"] as Record<string, unknown> | undefined;
-      const employer = num(court?.["employer"]);
-      const landed = c["landed_data"] !== undefined;
-      const homeId = employer ?? (landed ? id : null);
-      const realm = homeId !== null ? realmOf(homeId) : null;
-      const traitIdx = (c["traits"] as number[] | undefined) ?? [];
-      const skills = effectiveSkills(
-        loc,
-        (c["skill"] as number[] | undefined) ?? [],
-        traitIdx,
-        (c["trait_xp_amounts"] as number[] | undefined) ?? [],
-      ).total;
-      const fertility = num(
-        (c["alive_data"] as Record<string, unknown> | undefined)?.["fertility"],
-      );
-      if (opts.minHomeStrength !== undefined && (realm?.strength ?? 0) < opts.minHomeStrength)
-        continue;
-      const keys = traitIdx.map((i) => loc.traitKey(i) ?? "");
-      const goodGenes = traitIdx
+  // Skills, traits and family cost a lookup each, so only the best-standing candidates get them.
+  const shortlist = found.slice(0, Math.max(limit * 4, 80)).map((m): MarriageCandidate => {
+    const traitIdx = (q.at(`/living/${m.id}/traits`) as number[] | undefined) ?? [];
+    const keys = traitIdx.map((t) => loc.traitIdentifier(t) ?? "");
+    const claimTitles = (
+      ((characterRecord(q, m.id)?.["alive_data"] as Rec | undefined)?.["claim"] as
+        | Array<{ title?: number }>
+        | undefined) ?? []
+    )
+      .map((cl) => cl?.title)
+      .filter((t): t is number => typeof t === "number");
+    return {
+      ...m,
+      skills: effectiveSkills(q, loc, lookup, m.id),
+      traits: traitIdx.map((t) => loc.resolveTrait(t)),
+      goodGenes: traitIdx
         .filter((_, i) => GOOD_GENES.test(keys[i]!))
-        .map((i) => loc.resolveTrait(i));
-      const badGenes = traitIdx
-        .filter((_, i) => BAD_GENES.test(keys[i]!))
-        .map((i) => loc.resolveTrait(i));
-      const claimTitles = (
-        ((c["alive_data"] as Record<string, unknown> | undefined)?.["claim"] as
-          | Array<{ title?: number }>
-          | undefined) ?? []
-      )
-        .map((cl) => cl?.title)
-        .filter((t): t is number => typeof t === "number");
-      const nearby = realm?.nearby ?? false;
-      const sameCulture = me["culture"] !== undefined && c["culture"] === me["culture"];
-      const score =
-        (fertility ?? 0.5) * 10 +
-        skills.stewardship +
-        skills.diplomacy / 2 +
-        Math.min(8, (realm?.strength ?? 0) / 400) +
-        (nearby ? 10 : 0) +
-        (sameCulture ? 4 : 0) +
-        goodGenes.length * 2 -
-        badGenes.length * 3 -
-        Math.max(0, age - 35) * 0.5;
+        .map((t) => loc.resolveTrait(t)),
+      badGenes: traitIdx.filter((_, i) => BAD_GENES.test(keys[i]!)).map((t) => loc.resolveTrait(t)),
+      claims: claimTitles.slice(0, 4).map((t) => resolveTitleName(q, loc, t)),
+      allyRuler: allyRulerOf(m.id),
+    };
+  });
+  const score = (m: MarriageCandidate) => {
+    const s = m.skills.effective;
+    return standing(m) + s.diplomacy + s.stewardship + s.intrigue + s.learning;
+  };
+  // Priority order for an heir: a strong ally first, then youth and fertility, skills, good genes.
+  const priority = (m: MarriageCandidate) => {
+    const ally = m.allyRuler?.strength ?? 0;
+    const tier = ally >= 3000 ? 3 : ally >= 1500 ? 2 : ally >= 800 ? 1 : 0;
+    const age = m.age ?? 30;
+    const s = m.skills.effective;
+    return (
+      tier * 100 +
+      ((m.fertility ?? 0.5) * 10 + (age <= 25 ? 3 : 0) - Math.max(0, age - 30)) * 3 +
+      (s.stewardship + s.diplomacy) * 0.7 +
+      (m.goodGenes.length - m.badGenes.length) * 3 +
+      m.claims.length
+    );
+  };
+  shortlist.sort((a, b) =>
+    opts.rank === "priority" ? priority(b) - priority(a) : score(b) - score(a),
+  );
 
-      const kinOfRuler = kinOf(id, homeId);
-      const allyRuler = allyRulerOf(id, c);
-      const allyStrength = allyRuler?.strength ?? 0;
-      const tier =
-        allyStrength >= 3000 ? 3 : allyStrength >= 1500 ? 2 : allyStrength >= 800 ? 1 : 0;
-      const priorityScore =
-        tier * 100 +
-        ((fertility ?? 0.5) * 10 + (age <= 25 ? 3 : 0) - Math.max(0, age - 30)) * 3 +
-        (skills.stewardship + skills.diplomacy) * 0.7 +
-        (goodGenes.length - badGenes.length) * 3 +
-        claimTitles.length;
-
-      found.push({
-        id,
-        name: fullNameOf(q, loc, c, id),
-        age,
-        skills,
-        traits: traitIdx.map((i) => loc.resolveTrait(i)),
-        goodGenes,
-        badGenes,
-        claims: claimTitles.slice(0, 4).map((t) => resolveTitleName(q, loc, t)),
-        fertility,
-        home: realm
-          ? { id: realm.id, name: realm.name, realm: realm.realm, strength: realm.strength }
-          : null,
-        nearby,
-        sameCulture,
-        kinOfRuler,
-        allyRuler,
-        distance,
-        inYourCourt: employer === playerId,
-        score,
-        priorityScore,
-      });
-    }
-  }
-
-  // Local (same region or culture) first: skills alone would send a Munster king to Germany.
-  const local = (c: MarriageCandidate) => Number(c.nearby || c.sameCulture);
-  if (opts.rank === "priority") found.sort((a, b) => b.priorityScore - a.priorityScore);
-  else found.sort((a, b) => local(b) - local(a) || b.score - a.score);
   return {
-    you: {
+    subject: {
       id: subjectId,
-      name: fullNameOf(q, loc, me, subjectId),
-      age: myAge,
+      name: fullNameOf(q, loc, subjectRec, subjectId),
+      age: subjectAge,
+      female: subjectFemale,
+      rite: subjectRiteName,
     },
-    faithMatched,
-    candidates: found.slice(0, limit),
+    candidates: shortlist.slice(0, limit),
+    total: found.length,
+    scanned,
+    excluded,
   };
 }

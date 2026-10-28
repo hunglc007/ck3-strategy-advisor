@@ -8,8 +8,38 @@ A local stdio **Model Context Protocol** server that reads the player's latest
 **Crusader Kings III** save and exposes their strategic situation to Claude as
 curated, read-only tools (`realm_overview`, `military`, `succession`,
 `diplomacy`, `vassals`, `titles`, `factions`, `expansion`, `find_character`,
-`character`, `foreign_realm`).
+`character`, `foreign_realm`, plus `alerts`, `court`, `family`, `domain`,
+`intrigue` in `tools/extended.ts`, which run a fresh `cache.query()` pass each
+call instead of reading the snapshot).
 It never modifies the save or the game. See `README.md` for install/config/usage.
+
+`gameData.ts` (`GameData`, held as `cache.game`) loads static data the save
+lacks from `CK3_GAME_DIR` — currently the barony → province map from
+`common/landed_titles`, used by `domain` and `cache.provinceName()`. Shared
+extractor helpers (ages, names, council seats, 1.20 vassal contracts) live in
+`extract/common.ts`.
+
+`extract/skills.ts` (`effectiveSkills`) turns the save's base skills into
+base + trait bonuses using `cache.lookup.skillsOfTrait` (parsed from
+`common/traits` by `parseTraitSkills`, including XP-track tiers). `court` and
+`character` use it; keep new tools that show skills on it rather than the raw
+`skill` array.
+
+`extract/marriage.ts` (`extractMarriageCandidates`, tool `marriage_candidates`) re-creates the
+game's arrange-marriage list: opposite-sex, unmarried/unbetrothed characters who are rulers,
+the courtiers of rulers or rulers' children, without a `can_not_marry` trait and not forbidden
+by either rite's consanguinity doctrine (`/rites/database`). It ranks by court tier + same
+rite, then computes skills only for a shortlist (skill lookups are the slow part). It reuses
+`Kin`/`buildParentIndex` from `extract/family.ts`.
+
+`gameLookup.ts` (`GameLookup`, shared as `cache.lookup`, used by `tools/gameLookup.ts`: `game_search`,
+`game_entry`) is a lazy per-category index over the game's own script files.
+`parseTopLevel` splits a `.txt` into top-level `key = { ... }` blocks (comments
+and quoted strings skipped when matching braces; `scalars: true` also keeps
+`key = value`, used for `script_value`). `CATEGORIES` maps each category to its
+folders and localization key patterns (most specific first). Later files
+override earlier ones for the same key. It reads game files only, never the
+save, so those tools are not stamped with a snapshot.
 
 ## Commands
 
@@ -116,3 +146,12 @@ path or gotcha, update `docs/save-schema.md` in the same change.
 - Tests are vitest, one `tests/<area>.test.ts` per extractor/tool, plus
   `tests/fixtures/` (a `mini-gamestate.txt` and `make-envelope.ts` for building
   a fake `.ck3`). New extractors get a matching test.
+- **Follow the game's own rules first.** When a mechanic is new (who a list shows, who can
+  be hired, what a task does, alliance or range conditions), search the installed game files
+  (`common/character_interactions`, `scripted_triggers`, `script_values`, `defines`, `events`,
+  `council_tasks`, `localization`, or the `game_search` tool) and implement what they say.
+  Calibrate or invent a rule only when the game's cannot be found, and say it is approximate.
+  Examples already in the code: diplomatic range and the marriage list
+  (`extract/marriage.ts`, `provinces.ts`), a councillor's seat from the file a task is defined
+  in (`councilTasks.ts`), full names as house prefix + name (`extract/names.ts`), enabled mods'
+  localization from `dlc_load.json` (`mods.ts`).

@@ -11,8 +11,8 @@ export function houseName(q: Query, loc: Localizer, houseId: unknown): string | 
     | { name?: unknown; prefix?: unknown }
     | undefined;
   if (!h || typeof h.name !== "string") return null;
-  const prefix = typeof h.prefix === "string" ? loc.text(h.prefix) : "";
-  return `${prefix}${loc.text(h.name)}`;
+  const prefix = typeof h.prefix === "string" ? loc.rawText(h.prefix) : "";
+  return `${prefix}${loc.rawText(h.name)}`;
 }
 
 /** Full display name from an already loaded character record: first name, then house. */
@@ -22,7 +22,7 @@ export function fullNameOf(
   c: Record<string, unknown> | undefined,
   fallback: string | number = "unknown",
 ): string {
-  const first = loc.text(c?.["first_name"] ?? fallback);
+  const first = loc.rawText(c?.["first_name"] ?? fallback);
   const house = houseName(q, loc, c?.["dynasty_house"]);
   return house ? `${first} ${house}` : first;
 }

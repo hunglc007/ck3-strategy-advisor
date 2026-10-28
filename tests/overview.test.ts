@@ -13,8 +13,16 @@ test("buildSnapshot extracts the realm overview", async () => {
   expect(snap.overview.tier).toBe(5);
   expect(snap.overview.house).toBe("Přemyslid");
   expect(snap.overview.gold).toBe(124.5);
-  expect(snap.overview.prestige).toBe(820.0);
-  expect(snap.overview.piety).toBe(310.0);
+  // prestige/piety report the spendable `currency`; lifetime prestige is separate.
+  expect(snap.overview.prestige).toBe(400.0);
+  expect(snap.overview.prestigeLifetime).toBe(820.0);
+  expect(snap.overview.piety).toBe(100.0);
+  expect(snap.overview.income).toBe(12.3);
+  expect(snap.overview.laws).toEqual([
+    "crown_authority_3",
+    "single_heir_succession_law",
+    "male_preference_law",
+  ]);
   expect(snap.date).toBe("1130.7.24");
   expect(snap.parsedAt).toBeGreaterThan(0);
 });

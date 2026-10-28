@@ -1,10 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SnapshotCache } from "../cache.js";
 import { stamp } from "../format.js";
+import { extractFactions } from "../extract/vassals.js";
 import {
   ROLE_SKILL,
   riskNotes,
   suggestCouncil,
+  extractCouncil,
   type Courtier,
   type CouncilRole,
 } from "../extract/council.js";
@@ -14,6 +16,7 @@ function line(c: Courtier): string {
   const age = c.age !== null ? `, age ${c.age}` : "";
   const tags = [
     c.vassal ? "vassal" : "",
+    c.spouse ? "spouse" : "",
     c.knight ? "knight" : "",
     c.sameHouse ? "your house" : "",
     c.seat ? `seat: ${c.seat}` : "",
@@ -51,8 +54,19 @@ export function registerCouncilTool(server: McpServer, cache: SnapshotCache) {
     async () => {
       const snap = await cache.get();
       if ("error" in snap) return { isError: true, content: [{ type: "text", text: snap.error }] };
-
-      const { council } = snap;
+      const year = Number.parseInt(snap.date, 10);
+      const result = await cache.query((q) => ({
+        council: extractCouncil(
+          q,
+          cache.loc,
+          cache.lookup,
+          Number.isFinite(year) ? year : null,
+          extractFactions(q, cache.loc).memberIds,
+        ),
+      }));
+      if ("error" in result)
+        return { isError: true, content: [{ type: "text", text: result.error }] };
+      const { council } = result;
       const plan = suggestCouncil(council);
 
       let body = "# Council\n";

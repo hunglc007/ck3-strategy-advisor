@@ -1,0 +1,155 @@
+date=1066.9.15
+traits_lookup={ "brave" "arrogant" }
+meta_data={
+	meta_player_name="Duke Murchad"
+	meta_title_name="Munster"
+	meta_player_tier=3
+	meta_house_name="Briain"
+}
+played_character={
+	character=100
+	player=1
+}
+landed_titles={
+landed_titles={
+10={ key="d_munster" holder=100 de_jure_vassals={ 11 13 14 } title_name_data={ name="Munster" } }
+11={ key="c_thomond" holder=100 de_facto_liege=10 de_jure_liege=10 }
+12={ key="b_limerick" holder=100 de_facto_liege=11 de_jure_liege=11 }
+13={ key="c_ormond" holder=300 de_facto_liege=10 de_jure_liege=10 }
+14={ key="c_desmond" holder=400 }
+15={ key="b_roscrea" holder=100 de_facto_liege=13 de_jure_liege=13 }
+}
+}
+living={
+100={
+	first_name="Murchad"
+	birth=1027.1.1
+	dynasty_house=1
+	traits={ 0 }
+	skill={ 10 12 6 3 3 12 }
+	family_data={ child={ 101 } }
+	alive_data={
+		income=3.5
+		gold={ value=202 }
+		piety={ currency=150 }
+		prestige={ currency=1300 accumulated=1400 }
+	}
+	landed_data={
+		domain={ 10 11 12 15 }
+		council={ 900 901 }
+		vassal_contracts={ 50 }
+		succession={ 101 102 103 }
+		laws={ crown_authority_0 }
+		balance=2.8
+		domain_limit=5
+		realm_capital=12
+		levy=508
+		strength=822
+		current_strength=822
+	}
+	playable_data={ knights={ 102 } legitimacy=352 }
+}
+101={
+	first_name="Brian"
+	birth=1048.1.1
+	skill={ 6 9 7 4 7 5 }
+	court_data={ employer=100 }
+}
+102={
+	first_name="Conchobar"
+	birth=1020.1.2
+	skill={ 4 8 6 5 2 9 }
+	family_data={ child={ 103 } spouse=104 }
+	court_data={ employer=100 }
+}
+103={
+	first_name="Malachy"
+	birth=1045.6.1
+	skill={ 2 2 2 2 11 2 }
+	court_data={ employer=100 }
+}
+104={
+	first_name="Gormlaith"
+	birth=1025.1.1
+	female=yes
+	skill={ 5 1 4 6 8 0 }
+	court_data={ employer=100 }
+}
+300={
+	first_name="Donal"
+	birth=1030.1.1
+	skill={ 3 3 3 3 3 3 }
+	landed_data={ domain={ 13 } strength_for_liege=120 }
+}
+400={
+	first_name="Cormac"
+	birth=1031.1.1
+	skill={ 3 3 3 3 3 3 }
+	landed_data={ domain={ 14 } }
+}
+}
+dead_unprunable={
+90={ first_name="Donnchad" birth=990.1.1 family_data={ child={ 100 102 } } dead_data={ date=1064.1.1 } }
+}
+council_task_manager={
+active={
+900={ type=task_collect_taxes owner=300 court_owner=100 }
+901={ type=task_foreign_affairs owner=102 court_owner=100 }
+}
+}
+court_positions={
+database={
+0={ court_position=court_physician_court_position employee=103 employer=100 }
+1={ court_position=court_physician_court_position employee=400 employer=999 }
+}
+}
+vassal_contracts={
+database={
+49=none
+50={ vassal=300 liege=100 }
+}
+}
+county_manager={
+counties={
+c_thomond={ development=6 county_control=100 culture=7 }
+}
+}
+culture_manager={
+cultures={
+7={ name="irish" }
+}
+}
+provinces={
+45={ holding={ type=castle_holding buildings={ { type=castle_01 } { } { } } levy=534 garrison=535 income=2.3 } fort_level=3 }
+}
+armies={
+regiments={
+1={ origin=45 max=500 }
+2={ type=light_footmen origin=45 size=200 owner=100 }
+3={ type=bowmen size=100 owner=100 }
+4={ type=pikemen_unit size=300 owner=400 }
+}
+}
+important_action_manager={
+active={
+0={ important_action_type=action_adult_ruler_not_married character=100 scope={ event_targets={ actor={ type=char identity=100 } recipient={ type=char identity=100 } } } visible=yes }
+1={ important_action_type=action_has_any_display_cb_on character=100 scope={ event_targets={ actor={ type=char identity=100 } recipient={ type=char identity=400 } } } visible=yes }
+2={ important_action_type=action_close_family_can_marry character=100 scope={ event_targets={ actor={ type=char identity=100 } recipient={ type=char identity=101 } } } visible=yes }
+3={ important_action_type=action_close_family_can_marry character=100 scope={ event_targets={ actor={ type=char identity=100 } recipient={ type=char identity=103 } } } visible=yes }
+4={ important_action_type=action_station_men_at_arms character=400 scope={ event_targets={ actor={ type=char identity=400 } } } visible=yes }
+}
+}
+secrets={
+secrets={
+0={ type=secret_deviant owner=103 participants={ 103 } }
+1={ type=secret_lover target={ type=char identity=104 } owner=100 participants={ 100 104 } }
+2={ type=secret_witch owner=400 participants={ 400 } }
+}
+known_secrets={ { secret=0 owner=103 } { secret=0 owner=100 } { secret=1 owner=100 } { secret=1 owner=104 } { secret=2 owner=400 } }
+}
+relations={
+active_relations={
+{ first=100 second=300 active_hook_0={ type=loyalty_hook } }
+{ first=102 second=100 active_hook_0={ type=house_head_hook } }
+}
+}

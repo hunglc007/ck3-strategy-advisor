@@ -83,3 +83,19 @@ living={
   const names = await queryGamestate(gs, (q) => [fullName(q, loc, 1), fullName(q, loc, 2)]);
   expect(names).toEqual(["Sybille d'Ivrea", "Pool"]);
 });
+
+import { parseCouncilTaskRoles } from "../src/councilTasks.js";
+
+test("council tasks map to their councillor from the file they are defined in", () => {
+  const roles = parseCouncilTaskRoles([
+    ["00_marshal_tasks.txt", "task_organize_levies = {\n}\ntask_increase_control = {\n}\n"],
+    [
+      "00_court_chaplain_tasks.txt",
+      "task_religious_relations = {\n}\ntask_fabricate_claim = {\n}\n",
+    ],
+    ["00_spouse_tasks.txt", "task_manage_domain = {\n}\n"],
+  ]);
+  expect(roles.get("task_increase_control")).toBe("marshal");
+  expect(roles.get("task_fabricate_claim")).toBe("court_chaplain");
+  expect(roles.has("task_manage_domain")).toBe(false); // spouse tasks are not a council seat
+});

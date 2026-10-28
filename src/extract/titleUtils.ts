@@ -1,11 +1,15 @@
 import type { Query } from "../parser.js";
 import type { Localizer } from "../localization.js";
 
-// Display name for a numeric title id: current name -> localized key -> raw id.
+// Display name for a numeric title id: current name -> 1.20 title_name_data
+// (cultural/renamed name) -> localized key -> raw id.
 export function resolveTitleName(q: Query, loc: Localizer, titleId: number): string {
-  const name = q.at(`/landed_titles/landed_titles/${titleId}/name`) as string | undefined;
+  const base = `/landed_titles/landed_titles/${titleId}`;
+  const name = q.at(`${base}/name`) as string | undefined;
   if (name !== undefined) return name;
-  const key = q.at(`/landed_titles/landed_titles/${titleId}/key`) as string | undefined;
+  const dataName = q.at(`${base}/title_name_data/name`);
+  if (typeof dataName === "string" && !/^[ekdcbh]_/.test(dataName)) return dataName;
+  const key = q.at(`${base}/key`) as string | undefined;
   if (key !== undefined) return loc.resolve(key);
   return String(titleId);
 }

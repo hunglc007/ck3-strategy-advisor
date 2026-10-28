@@ -1,7 +1,8 @@
 import type { Query } from "../parser.js";
 import { fullNameOf } from "./names.js";
 import type { Localizer } from "../localization.js";
-import { effectiveSkills, type Skills } from "./skills.js";
+import { effectiveSkills, type SkillSet } from "./skills.js";
+import type { GameLookup } from "../gameLookup.js";
 import { MILD_TRAITS, SEVERE_TRAITS } from "./council.js";
 
 export interface PoolCharacter {
@@ -9,7 +10,7 @@ export interface PoolCharacter {
   name: string;
   age: number;
   female: boolean;
-  skills: Skills;
+  skills: SkillSet;
   traits: string[];
   /** Why they are a worse pick despite their skills (empty when none). */
   flags: string[];
@@ -40,6 +41,7 @@ function num(v: unknown): number | null {
 export function extractPool(
   q: Query,
   loc: Localizer,
+  lookup: GameLookup | null,
   nowYear: number,
   scope: PoolScope = "empire",
 ): PoolInfo | null {
@@ -104,12 +106,7 @@ export function extractPool(
       name: fullNameOf(q, loc, c, idStr),
       age,
       female: c["female"] === true || c["female"] === "yes",
-      skills: effectiveSkills(
-        loc,
-        (c["skill"] as number[] | undefined) ?? [],
-        idx,
-        (c["trait_xp_amounts"] as number[] | undefined) ?? [],
-      ).total,
+      skills: effectiveSkills(q, loc, lookup, Number(idStr)).effective,
       traits: idx.map((i) => loc.resolveTrait(i)),
       flags,
     });

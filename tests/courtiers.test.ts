@@ -19,7 +19,7 @@ living={
 `);
 
 test("lists only unattached, landless same-faith adults and adds trait skills", async () => {
-  const r = await queryGamestate(GS, (q) => extractPool(q, new Localizer(null), 1066));
+  const r = await queryGamestate(GS, (q) => extractPool(q, new Localizer(null), null, 1066));
   expect(r!.characters.map((c) => c.name)).toEqual(["Free"]);
   expect(r!.faithMatched).toBe(1);
   expect(r!.region).toBeNull(); // no game files: not limited to a region

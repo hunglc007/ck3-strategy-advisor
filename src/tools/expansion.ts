@@ -9,8 +9,9 @@ export function registerExpansionTool(server: McpServer, cache: SnapshotCache) {
       title: "Expansion",
       description:
         "Stored expansion levers: your title claims (pressed/unpressed — CK3 does not store strong/weak), " +
-        "de jure titles in your realm that are currently unheld, and the targets of your ongoing wars. " +
-        "This lists STORED data, not a full computed enumeration of every possible casus belli.",
+        "de jure titles in your realm that are currently unheld, de jure parts of your duchies/kingdoms held by " +
+        "rulers outside your realm, rulers the game flags as valid casus belli targets right now, and the targets " +
+        "of your ongoing wars. The CB list comes from the game's own nudges and does not name the CB type.",
       inputSchema: {},
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -45,6 +46,26 @@ export function registerExpansionTool(server: McpServer, cache: SnapshotCache) {
           body += djNote;
         } else {
           body += `## Unheld de jure titles (0)\nNone.\n`;
+        }
+
+        // De jure land held outside the realm (de jure CB / claim targets)
+        if (e.deJureOutsideRealm.length > 0) {
+          const { shown: shownDO, note: doNote } = truncate(e.deJureOutsideRealm, 10);
+          body += `## Your de jure land held by others (${e.deJureOutsideRealm.length})\n`;
+          for (const t of shownDO) {
+            body += `- ${t.title} (part of ${t.partOf}) — held by ${t.holderName} (${t.holderId})\n`;
+          }
+          body += doNote;
+        }
+
+        // Rulers the game says you can declare war on right now
+        if (e.cbTargets.length > 0) {
+          const { shown: shownCB, note: cbNote } = truncate(e.cbTargets, 10);
+          body += `## Available casus belli targets (${e.cbTargets.length})\n`;
+          for (const t of shownCB) {
+            body += `- ${t.name} (${t.id})${t.primaryTitle ? ` — ${t.primaryTitle}` : ""}\n`;
+          }
+          body += cbNote;
         }
 
         // Ongoing war targets

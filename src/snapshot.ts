@@ -12,7 +12,7 @@ import {
 } from "./extract/vassals.js";
 import { extractExpansion, type ExpansionInfo } from "./extract/expansion.js";
 import { extractTitles, type TitlesInfo } from "./extract/titles.js";
-import { extractCouncil, type CouncilInfo } from "./extract/council.js";
+import { characterAge, idList } from "./extract/common.js";
 
 export interface RealmOverview {
   rulerName: string;
@@ -21,8 +21,25 @@ export interface RealmOverview {
   tier: number;
   house: string;
   gold: number | null;
+  /** Spendable prestige (what the top bar shows). */
   prestige: number | null;
+  /** Lifetime prestige, which drives prestige level. */
+  prestigeLifetime: number | null;
   piety: number | null;
+  age: number | null;
+  /** Monthly gold income and net balance after expenses. */
+  income: number | null;
+  balance: number | null;
+  legitimacy: number | null;
+  government: string | null;
+  laws: string[];
+  spouses: number;
+  /** Personally held holdings (baronies) vs the domain limit. */
+  holdings: number;
+  domainLimit: number | null;
+  /** Vassals counting toward the vassal limit vs that limit. */
+  vassalsTowardsLimit: number | null;
+  vassalLimit: number | null;
 }
 export interface Snapshot {
   date: string;
@@ -36,7 +53,6 @@ export interface Snapshot {
   vassalCount: number;
   expansion: ExpansionInfo;
   titles: TitlesInfo;
-  council: CouncilInfo;
 }
 
 function num(v: unknown): number | null {
@@ -52,6 +68,13 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
     const date = formatCk3Date(q.at("/date"));
     const playerId = q.at("/played_character/character");
     const alive = `/living/${playerId}/alive_data`;
+    const landed = `/living/${playerId}/landed_data`;
+    const domain = (q.at(`${landed}/domain`) as number[] | undefined) ?? [];
+    const holdings = domain.filter((t) => {
+      const key = q.at(`/landed_titles/landed_titles/${t}/key`);
+      return typeof key === "string" && key.startsWith("b_");
+    }).length;
+    const laws = (q.at(`${landed}/laws`) as string[] | undefined) ?? [];
     const overview: RealmOverview = {
       rulerName: str(q.at("/meta_data/meta_player_name")),
       date,
@@ -59,8 +82,22 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
       tier: num(q.at("/meta_data/meta_player_tier")) ?? 0,
       house: str(q.at("/meta_data/meta_house_name")),
       gold: num(q.at(`${alive}/gold/value`)),
-      prestige: num(q.at(`${alive}/prestige/accumulated`)),
-      piety: num(q.at(`${alive}/piety/accumulated`)),
+      // `currency` is the spendable amount; `accumulated` is the lifetime total.
+      prestige:
+        num(q.at(`${alive}/prestige/currency`)) ?? num(q.at(`${alive}/prestige/accumulated`)),
+      prestigeLifetime: num(q.at(`${alive}/prestige/accumulated`)),
+      piety: num(q.at(`${alive}/piety/currency`)) ?? num(q.at(`${alive}/piety/accumulated`)),
+      age: characterAge(q, playerId as number),
+      income: num(q.at(`${alive}/income`)),
+      balance: num(q.at(`${landed}/balance`)),
+      legitimacy: num(q.at(`/living/${playerId}/playable_data/legitimacy`)),
+      government: (q.at(`${landed}/government`) as string | undefined) ?? null,
+      laws: laws.map((l) => loc.resolve(l)),
+      spouses: idList(q.at(`/living/${playerId}/family_data/spouse`)).length,
+      holdings,
+      domainLimit: num(q.at(`${landed}/domain_limit`)),
+      vassalsTowardsLimit: num(q.at(`${landed}/vassals_towards_limit`)),
+      vassalLimit: num(q.at(`${landed}/vassal_limit`)),
     };
     const military = extractMilitary(q, loc);
     const expansion = extractExpansion(q, loc, military.wars);
@@ -69,13 +106,6 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
     const { factions, memberIds } = extractFactions(q, loc);
     const { vassals, total: vassalCount } = extractVassals(q, loc, memberIds);
     const titles = extractTitles(q, loc);
-    const rawDate = q.at("/date");
-    const council = extractCouncil(
-      q,
-      loc,
-      rawDate instanceof Date ? rawDate.getUTCFullYear() : null,
-      memberIds,
-    );
     return {
       date,
       parsedAt: Date.now(),
@@ -88,7 +118,6 @@ export async function buildSnapshot(gamestate: Buffer, loc: Localizer): Promise<
       vassals,
       vassalCount,
       titles,
-      council,
     };
   });
 }

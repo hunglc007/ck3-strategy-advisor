@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseBlock, tokenize, type Node } from "./traitSkills.js";
+import { parseBlock, tokenize, type Node } from "./scriptTree.js";
 
 export interface ProvinceRegion {
   county: string | null;

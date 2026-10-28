@@ -8,7 +8,9 @@ export function registerMilitaryTool(server: McpServer, cache: SnapshotCache) {
     {
       title: "Military",
       description:
-        "Player's military strength (levy + total mobilised strength) and ongoing wars (side, casus belli, target, war score). Note: CK3 does not store a men-at-arms breakdown, so only realm totals are shown.",
+        "Player's military strength (levy + total mobilised strength), the ruler's own men-at-arms regiments " +
+        "(type, size, where stationed), and ongoing wars (side, casus belli, target, war score). " +
+        "Men-at-arms hired by vassals are not included.",
       inputSchema: {},
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -23,6 +25,16 @@ export function registerMilitaryTool(server: McpServer, cache: SnapshotCache) {
         m.currentStrength !== null ? Math.round(m.currentStrength).toString() : "?";
 
       let body = `# Military\n- Levy: ${levyStr} | Total strength: ${strengthStr} (current ${currentStr})\n`;
+
+      body += `## Men-at-arms (${m.menAtArms.length})\n`;
+      if (m.menAtArms.length === 0) body += "None.\n";
+      for (const r of m.menAtArms) {
+        const where =
+          r.stationedProvince !== null
+            ? `stationed at ${cache.provinceName(r.stationedProvince)}`
+            : "not stationed";
+        body += `- ${r.type}: ${r.size} men, ${where}\n`;
+      }
 
       const { shown, note } = truncate(m.wars, 5);
       if (shown.length === 0) {
